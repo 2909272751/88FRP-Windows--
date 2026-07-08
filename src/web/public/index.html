@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>88FRP 控制台</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="app">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <button class="btn-create" id="btnShowCreate">
+          <span>+</span> 创建实例
+        </button>
+      </div>
+      <div class="instance-list" id="instanceList"></div>
+    </aside>
+
+    <main class="main-content">
+      <div id="emptyState" class="empty-state">
+        <p>请选择或创建一个实例开始管理</p>
+      </div>
+
+      <div id="workbench" style="display: none; flex: 1; flex-direction: column;">
+        <header class="toolbar">
+          <div class="toolbar-left">
+            <button class="btn btn-primary" id="btnStart" style="display: none;">启动</button>
+            <button class="btn btn-primary" id="btnRestart" style="display: none;">重启</button>
+            <button class="btn btn-secondary" id="btnStop" style="display: none;">暂停</button>
+            <div id="instStatusInfo" class="inst-status-info"></div>
+          </div>
+          <div class="toolbar-right">
+            <input type="text" class="input-secret" id="inputSecret" placeholder="输入密钥 (secret)">
+            <label class="toggle-option" for="inputAutoSync">
+              <input type="checkbox" id="inputAutoSync">
+              <span>开启自动同步</span>
+            </label>
+            <a href="https://88frp.com" target="_blank" class="get-secret-link">获取密钥</a>
+            <button class="btn btn-primary" id="btnSync">同步配置</button>
+          </div>
+        </header>
+
+        <nav class="view-tabs">
+          <div class="tab active" data-view="editor">配置文件</div>
+          <div class="tab" data-view="tunnels">隧道选择</div>
+          <div class="tab" data-view="log">运行日志</div>
+        </nav>
+
+        <div class="content-area">
+          <div id="editorView" class="editor-container active">
+            <textarea id="configEditor" class="editor" placeholder="在此粘贴 frpc 配置..."></textarea>
+            <div class="panel-actions panel-actions-split">
+              <button class="btn btn-danger" id="btnDelete">删除实例</button>
+              <button class="btn btn-primary" id="btnSaveConfig">保存配置</button>
+            </div>
+          </div>
+
+          <div id="tunnelsView" class="tunnels-container">
+            <div class="tunnels-hint">勾选要运行的隧道；未勾选的隧道会保留配置，但不会启动。同步后会记住已保存的选择，新隧道默认关闭。</div>
+            <div id="tunnelsList" class="tunnels-list"></div>
+            <div class="panel-actions panel-actions-split">
+              <button class="btn btn-secondary" id="btnReloadTunnels">刷新隧道</button>
+              <div class="panel-actions-inline">
+                <button class="btn btn-secondary" id="btnSelectNoTunnels">全不选</button>
+                <button class="btn btn-primary" id="btnSaveTunnels">保存隧道选择</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="logView" class="log-container">
+            <div id="logContent" class="log-view">正在加载日志...</div>
+            <div class="panel-actions">
+              <button class="btn btn-secondary" id="btnRefreshLog">刷新日志</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="createModal" class="modal-overlay">
+    <div class="modal">
+      <h3 class="modal-title">创建新实例</h3>
+      <div class="form-group">
+        <label>实例名称</label>
+        <input type="text" id="newInstName" class="form-control" placeholder="例如：主力隧道">
+      </div>
+      <div class="form-group">
+        <div class="form-label-row">
+          <label style="margin-bottom: 0;">密钥 (可选)</label>
+          <a href="https://88frp.com" target="_blank" class="get-secret-link">获取密钥</a>
+        </div>
+        <input type="text" id="newInstSecret" class="form-control" placeholder="留空则手动配置">
+      </div>
+      <label class="checkbox-row" for="newInstAutoSync">
+        <input type="checkbox" id="newInstAutoSync">
+        <span>创建后开启自动同步</span>
+      </label>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="btnCancelCreate">取消</button>
+        <button class="btn btn-primary" id="btnConfirmCreate">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

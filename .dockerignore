@@ -1,0 +1,13 @@
+node_modules/
+data/
+dist/
+coverage/
+.env
+.sea/
+.git/
+.gitignore
+*.md
+docs/
+tests/
+scripts/
+.DS_Store
