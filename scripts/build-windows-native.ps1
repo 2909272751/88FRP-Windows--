@@ -1,12 +1,13 @@
 $ErrorActionPreference = "Stop"
 
 $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$Source = Join-Path $ProjectRoot "src\windows-launcher\NativeClient.cs"
+$Source = Join-Path $ProjectRoot "src\windows-launcher\WpfClient.cs"
 $DistDir = Join-Path $ProjectRoot "dist"
 $PublishDir = Join-Path $DistDir "88FRP-Windows"
 $BackendExe = Join-Path $DistDir "88frp-web.exe"
 $OutputExe = Join-Path $PublishDir "88FRP.exe"
 $Csc = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+$WpfDir = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\WPF"
 $IconPath = Join-Path $ProjectRoot "assets\88frp-logo.ico"
 $ManifestPath = Join-Path $ProjectRoot "src\windows-launcher\app.manifest"
 
@@ -46,6 +47,10 @@ New-Item -ItemType Directory -Force -Path $PublishDir | Out-Null
   /reference:System.Drawing.dll `
   /reference:System.Windows.Forms.dll `
   /reference:System.Web.Extensions.dll `
+  /reference:$(Join-Path $WpfDir "WindowsBase.dll") `
+  /reference:$(Join-Path $WpfDir "PresentationCore.dll") `
+  /reference:$(Join-Path $WpfDir "PresentationFramework.dll") `
+  /reference:System.Xaml.dll `
   $Source
 
 if ($LASTEXITCODE -ne 0) {
