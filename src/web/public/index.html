@@ -2,125 +2,283 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f8fb">
   <title>88FRP 控制台</title>
+  <link rel="stylesheet" href="/css/lucide.css">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-  <div id="app">
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-header">
-        <div class="sidebar-title-row">
-          <span class="sidebar-title">实例</span>
-          <button class="sidebar-close" id="btnHideInstances" type="button" aria-label="收起实例列表">收起</button>
+  <div class="app-backdrop"></div>
+  <div id="busyIndicator" class="busy-indicator" aria-hidden="true"></div>
+
+  <div id="app" class="app-shell">
+    <aside class="sidebar glass-surface" id="sidebar" aria-label="实例导航">
+      <div class="brand">
+        <img src="/88frp-logo.png" class="brand-logo" alt="">
+        <div class="brand-copy">
+          <strong>88FRP</strong>
+          <span>隧道控制台</span>
         </div>
-        <button class="btn-create" id="btnShowCreate">
-          <span>+</span> 创建实例
+        <button class="icon-button sidebar-close" id="btnHideInstances" type="button" aria-label="收起实例列表" title="收起实例列表">
+          <i class="icon-x" aria-hidden="true"></i>
         </button>
       </div>
+
+      <button class="filled-button btn-create" id="btnShowCreate" type="button">
+        <i class="icon-plus" aria-hidden="true"></i>
+        <span>创建实例</span>
+      </button>
+
+      <div class="sidebar-section-label">实例</div>
       <div class="instance-list" id="instanceList"></div>
+
+      <div class="sidebar-footer">
+        <span class="service-dot"></span>
+        <span>控制核心已连接</span>
+      </div>
     </aside>
 
+    <div class="sidebar-scrim" id="sidebarScrim"></div>
+
     <main class="main-content">
-      <div id="emptyState" class="empty-state">
-        <p>请选择或创建一个实例开始管理</p>
-        <button class="mobile-instances-button empty-instances-button" id="btnShowInstancesEmpty" type="button">
-          选择实例
+      <header class="top-app-bar glass-surface">
+        <button class="icon-button mobile-menu-button" id="btnShowInstances" type="button" aria-expanded="false" aria-label="打开实例列表" title="实例列表">
+          <i class="icon-menu" aria-hidden="true"></i>
         </button>
+        <div class="top-app-bar-title">
+          <span class="eyebrow">88FRP 控制台</span>
+          <strong id="topInstanceName">选择实例</strong>
+        </div>
+        <div class="top-app-bar-actions">
+          <button class="icon-button" id="btnTheme" type="button" aria-label="切换深色模式" title="切换深色模式">
+            <i class="icon-moon" aria-hidden="true"></i>
+          </button>
+          <button class="account-avatar" id="btnFrpAccountTop" type="button" aria-label="管理 88FRP 账号" title="管理 88FRP 账号">
+            <i class="icon-user-round" aria-hidden="true"></i>
+            <span class="account-avatar-dot" id="accountAvatarDot"></span>
+          </button>
+        </div>
+      </header>
+
+      <div id="emptyState" class="empty-state">
+        <div class="empty-icon"><i class="icon-waypoints" aria-hidden="true"></i></div>
+        <h1>选择一个实例</h1>
+        <p>查看运行状态、同步配置并管理要启用的隧道。</p>
+        <div class="empty-actions">
+          <button class="tonal-button" id="btnShowInstancesEmpty" type="button">
+            <i class="icon-list" aria-hidden="true"></i>
+            <span>选择实例</span>
+          </button>
+          <button class="filled-button" id="btnCreateFromEmpty" type="button">
+            <i class="icon-plus" aria-hidden="true"></i>
+            <span>创建实例</span>
+          </button>
+        </div>
       </div>
 
-      <div id="workbench" style="display: none; flex: 1; flex-direction: column;">
-        <header class="toolbar">
-          <button class="mobile-instances-button" id="btnShowInstances" type="button" aria-expanded="false">
-            实例列表
-          </button>
-          <div class="toolbar-left">
-            <button class="btn btn-primary" id="btnStart" style="display: none;">启动</button>
-            <button class="btn btn-primary" id="btnRestart" style="display: none;">重启</button>
-            <button class="btn btn-secondary" id="btnStop" style="display: none;">暂停</button>
-            <div id="instStatusInfo" class="inst-status-info"></div>
-          </div>
-          <div class="toolbar-right">
-            <button class="account-control" id="btnFrpAccount" type="button">
-              <span class="account-control-label">连接 88FRP</span>
-              <span class="account-control-status" id="frpAccountStatus">未连接</span>
-            </button>
-            <input type="text" class="input-secret" id="inputSecret" placeholder="输入密钥 (secret)">
-            <label class="toggle-option" for="inputAutoSync">
-              <input type="checkbox" id="inputAutoSync">
-              <span>开启自动同步</span>
-            </label>
-            <a href="https://88frp.com" target="_blank" class="get-secret-link">获取密钥</a>
-            <button class="btn btn-primary" id="btnSync">同步配置</button>
-          </div>
-        </header>
+      <div id="workbench" class="workbench">
+        <section class="overview-section">
+          <div class="overview-heading">
+            <div>
+              <div class="status-line">
+                <span class="status-chip" id="runtimeStatusChip">
+                  <span class="status-dot"></span>
+                  <span id="runtimeStatusText">未知</span>
+                </span>
+                <span class="instance-kicker">当前实例</span>
+              </div>
+              <h1 id="currentInstanceName">实例</h1>
+              <div id="instStatusInfo" class="runtime-meta"></div>
+            </div>
 
-        <nav class="view-tabs">
-          <div class="tab active" data-view="editor">配置文件</div>
-          <div class="tab" data-view="tunnels">隧道选择</div>
-          <div class="tab" data-view="log">运行日志</div>
+            <div class="runtime-actions" aria-label="实例运行控制">
+              <button class="command-button is-primary" id="btnStart" type="button" title="启动实例">
+                <i class="icon-play" aria-hidden="true"></i><span>启动</span>
+              </button>
+              <button class="command-button" id="btnRestart" type="button" title="重启实例">
+                <i class="icon-rotate-ccw" aria-hidden="true"></i><span>重启</span>
+              </button>
+              <button class="command-button" id="btnStop" type="button" title="停止实例">
+                <i class="icon-square" aria-hidden="true"></i><span>停止</span>
+              </button>
+            </div>
+          </div>
+
+          <section class="sync-card glass-surface" id="syncCard">
+            <button class="sync-card-summary" id="btnToggleSyncSettings" type="button" aria-expanded="false">
+              <span class="sync-card-icon"><i class="icon-refresh-cw" aria-hidden="true"></i></span>
+              <span class="sync-card-copy">
+                <strong>同步设置</strong>
+                <span id="syncSettingsSummary">管理密钥、自动同步和 88FRP 账号</span>
+              </span>
+              <i class="icon-chevron-down sync-card-chevron" aria-hidden="true"></i>
+            </button>
+
+            <div class="sync-settings-panel" id="syncSettingsPanel">
+              <button class="account-control" id="btnFrpAccount" type="button">
+                <span class="account-control-icon"><i class="icon-user-round" aria-hidden="true"></i></span>
+                <span class="account-control-copy">
+                  <span class="account-control-label">连接 88FRP</span>
+                  <span class="account-control-status" id="frpAccountStatus">未连接</span>
+                </span>
+                <i class="icon-chevron-right" aria-hidden="true"></i>
+              </button>
+
+              <div class="sync-field-group">
+                <label class="floating-field">
+                  <span>同步密钥</span>
+                  <input type="text" id="inputSecret" placeholder="输入密钥 (secret)" autocomplete="off">
+                </label>
+                <a href="https://88frp.com" target="_blank" rel="noopener" class="text-button">
+                  <span>获取密钥</span><i class="icon-external-link" aria-hidden="true"></i>
+                </a>
+              </div>
+
+              <div class="sync-controls">
+                <label class="switch-row" for="inputAutoSync">
+                  <span class="switch-copy">
+                    <strong>自动同步</strong>
+                    <span>远程配置变化后自动应用</span>
+                  </span>
+                  <span class="material-switch">
+                    <input type="checkbox" id="inputAutoSync">
+                    <span class="switch-track"><span class="switch-thumb"></span></span>
+                  </span>
+                </label>
+                <button class="filled-button sync-button" id="btnSync" type="button">
+                  <i class="icon-refresh-cw" aria-hidden="true"></i>
+                  <span>同步配置</span>
+                </button>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <nav class="view-tabs glass-surface" aria-label="实例视图">
+          <button class="tab active" data-view="tunnels" type="button" role="tab" aria-selected="true">
+            <i class="icon-waypoints" aria-hidden="true"></i><span>隧道</span>
+          </button>
+          <button class="tab" data-view="editor" type="button" role="tab" aria-selected="false">
+            <i class="icon-file-code-2" aria-hidden="true"></i><span>配置</span>
+          </button>
+          <button class="tab" data-view="log" type="button" role="tab" aria-selected="false">
+            <i class="icon-scroll-text" aria-hidden="true"></i><span>日志</span>
+          </button>
         </nav>
 
         <div class="content-area">
-          <div id="editorView" class="editor-container active">
-            <textarea id="configEditor" class="editor" placeholder="在此粘贴 frpc 配置..."></textarea>
-            <div class="panel-actions panel-actions-split">
-              <button class="btn btn-danger" id="btnDelete">删除实例</button>
-              <button class="btn btn-primary" id="btnSaveConfig">保存配置</button>
-            </div>
-          </div>
-
-          <div id="tunnelsView" class="tunnels-container">
-            <div class="tunnels-hint">勾选要运行的隧道；未勾选的隧道会保留配置，但不会启动。同步后会记住已保存的选择，新隧道默认关闭。</div>
-            <div id="tunnelsList" class="tunnels-list"></div>
-            <div class="panel-actions panel-actions-split">
-              <button class="btn btn-secondary" id="btnReloadTunnels">刷新隧道</button>
-              <div class="panel-actions-inline">
-                <button class="btn btn-secondary" id="btnSelectNoTunnels">全不选</button>
-                <button class="btn btn-primary" id="btnSaveTunnels">保存隧道选择</button>
+          <section id="tunnelsView" class="view-panel tunnels-container active">
+            <header class="panel-header">
+              <div>
+                <h2>隧道选择</h2>
+                <p>只运行已开启的隧道，新同步的隧道默认关闭。</p>
               </div>
-            </div>
-          </div>
+              <div class="panel-header-actions">
+                <button class="icon-button" id="btnReloadTunnels" type="button" aria-label="刷新隧道" title="刷新隧道">
+                  <i class="icon-refresh-cw" aria-hidden="true"></i>
+                </button>
+                <button class="icon-button" id="btnSelectNoTunnels" type="button" aria-label="全部关闭" title="全部关闭">
+                  <i class="icon-list-x" aria-hidden="true"></i>
+                </button>
+              </div>
+            </header>
+            <div id="tunnelsList" class="tunnels-list"></div>
+            <footer class="panel-actions tunnel-save-bar">
+              <div class="selection-summary" id="selectionSummary">已开启 0 条隧道</div>
+              <button class="filled-button" id="btnSaveTunnels" type="button">
+                <i class="icon-save" aria-hidden="true"></i><span>保存更改</span>
+              </button>
+            </footer>
+          </section>
 
-          <div id="logView" class="log-container">
-            <div id="logContent" class="log-view">正在加载日志...</div>
-            <div class="panel-actions">
-              <button class="btn btn-secondary" id="btnRefreshLog">刷新日志</button>
-            </div>
-          </div>
+          <section id="editorView" class="view-panel editor-container">
+            <header class="panel-header">
+              <div>
+                <h2>配置文件</h2>
+                <p>查看或编辑当前实例的完整 frpc 配置。</p>
+              </div>
+            </header>
+            <textarea id="configEditor" class="editor" placeholder="在此粘贴 frpc 配置..." spellcheck="false"></textarea>
+            <footer class="panel-actions panel-actions-split">
+              <button class="danger-button" id="btnDelete" type="button">
+                <i class="icon-trash-2" aria-hidden="true"></i><span>删除实例</span>
+              </button>
+              <button class="filled-button" id="btnSaveConfig" type="button">
+                <i class="icon-save" aria-hidden="true"></i><span>保存配置</span>
+              </button>
+            </footer>
+          </section>
+
+          <section id="logView" class="view-panel log-container">
+            <header class="panel-header">
+              <div>
+                <h2>运行日志</h2>
+                <p>显示最近 200 行，运行期间自动刷新。</p>
+              </div>
+              <button class="icon-button" id="btnRefreshLog" type="button" aria-label="刷新日志" title="刷新日志">
+                <i class="icon-refresh-cw" aria-hidden="true"></i>
+              </button>
+            </header>
+            <pre id="logContent" class="log-view">正在加载日志...</pre>
+          </section>
         </div>
       </div>
     </main>
   </div>
 
-  <div id="createModal" class="modal-overlay">
-    <div class="modal">
-      <h3 class="modal-title">创建新实例</h3>
+  <div id="createModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="createModalTitle">
+    <div class="modal glass-surface">
+      <div class="modal-header">
+        <div>
+          <span class="eyebrow">新实例</span>
+          <h3 class="modal-title" id="createModalTitle">创建隧道实例</h3>
+        </div>
+        <button class="icon-button" id="btnCloseCreate" type="button" aria-label="关闭" title="关闭">
+          <i class="icon-x" aria-hidden="true"></i>
+        </button>
+      </div>
       <div class="form-group">
-        <label>实例名称</label>
+        <label for="newInstName">实例名称</label>
         <input type="text" id="newInstName" class="form-control" placeholder="例如：主力隧道">
       </div>
       <div class="form-group">
         <div class="form-label-row">
-          <label style="margin-bottom: 0;">密钥 (可选)</label>
-          <a href="https://88frp.com" target="_blank" class="get-secret-link">获取密钥</a>
+          <label for="newInstSecret">同步密钥（可选）</label>
+          <a href="https://88frp.com" target="_blank" rel="noopener" class="text-button">获取密钥</a>
         </div>
         <input type="text" id="newInstSecret" class="form-control" placeholder="留空则手动配置">
       </div>
-      <label class="checkbox-row" for="newInstAutoSync">
-        <input type="checkbox" id="newInstAutoSync">
-        <span>创建后开启自动同步</span>
+      <label class="switch-row modal-switch-row" for="newInstAutoSync">
+        <span class="switch-copy">
+          <strong>创建后自动同步</strong>
+          <span>定期检查远程配置变化</span>
+        </span>
+        <span class="material-switch">
+          <input type="checkbox" id="newInstAutoSync">
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+        </span>
       </label>
       <div class="modal-actions">
-        <button class="btn btn-secondary" id="btnCancelCreate">取消</button>
-        <button class="btn btn-primary" id="btnConfirmCreate">创建</button>
+        <button class="text-button modal-cancel-button" id="btnCancelCreate" type="button">取消</button>
+        <button class="filled-button" id="btnConfirmCreate" type="button">
+          <i class="icon-plus" aria-hidden="true"></i><span>创建实例</span>
+        </button>
       </div>
     </div>
   </div>
 
   <div id="frpAccountModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="frpAccountTitle">
-    <div class="modal account-modal">
-      <h3 class="modal-title" id="frpAccountTitle">连接 88FRP 账号</h3>
+    <div class="modal glass-surface">
+      <div class="modal-header">
+        <div>
+          <span class="eyebrow">账号</span>
+          <h3 class="modal-title" id="frpAccountTitle">连接 88FRP</h3>
+        </div>
+        <button class="icon-button" id="btnCloseFrpAccount" type="button" aria-label="关闭" title="关闭">
+          <i class="icon-x" aria-hidden="true"></i>
+        </button>
+      </div>
       <p class="modal-description">连接后，同步配置发生变化时会自动更新隧道备注名称。</p>
       <div class="form-group">
         <label for="frpAccountUsername">账号</label>
@@ -130,19 +288,27 @@
         <label for="frpAccountPassword">密码</label>
         <input type="password" id="frpAccountPassword" class="form-control" autocomplete="current-password" placeholder="输入 88FRP 密码">
       </div>
-      <label class="checkbox-row" for="frpAccountAutoLogin">
-        <input type="checkbox" id="frpAccountAutoLogin" checked>
-        <span>保存密码并在登录失效时自动重新登录</span>
+      <label class="switch-row modal-switch-row" for="frpAccountAutoLogin">
+        <span class="switch-copy">
+          <strong>保存密码并自动重新登录</strong>
+          <span>登录失效后自动恢复连接</span>
+        </span>
+        <span class="material-switch">
+          <input type="checkbox" id="frpAccountAutoLogin" checked>
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+        </span>
       </label>
-      <p class="account-security-note">密码仅使用当前 Windows 用户的加密保护保存，不会写入配置文件或日志。</p>
+      <p class="account-security-note"><i class="icon-shield-check" aria-hidden="true"></i> 密码由当前 Windows 用户加密保护，不写入配置或日志。</p>
       <div class="modal-actions">
-        <button class="btn btn-secondary" id="btnCancelFrpAccount" type="button">取消</button>
-        <button class="btn btn-primary" id="btnConnectFrpAccount" type="button">连接账号</button>
+        <button class="text-button modal-cancel-button" id="btnCancelFrpAccount" type="button">取消</button>
+        <button class="filled-button" id="btnConnectFrpAccount" type="button">
+          <i class="icon-log-in" aria-hidden="true"></i><span>连接账号</span>
+        </button>
       </div>
     </div>
   </div>
 
-  <div id="toast" class="toast"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="/js/api.js"></script>
   <script src="/js/app.js"></script>

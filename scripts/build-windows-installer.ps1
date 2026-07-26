@@ -12,17 +12,64 @@ $InstallerPublishDir = Join-Path $DistDir "88FRP-Windows-installer-files"
 $InstallerZip = Join-Path $DistDir "88FRP-Windows-installer-files.zip"
 
 if (-not $InnoSetupCompiler) {
-  $candidates = @(
+  $candidates = @()
+
+  if ($env:INNO_SETUP_COMPILER) {
+    $candidates += $env:INNO_SETUP_COMPILER
+  }
+
+  $pathCommand = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
+  if ($pathCommand) {
+    $candidates += $pathCommand.Source
+  }
+
+  $appPathKeys = @(
+    "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\ISCC.exe",
+    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\ISCC.exe"
+  )
+  foreach ($key in $appPathKeys) {
+    $appPath = (Get-ItemProperty -LiteralPath $key -ErrorAction SilentlyContinue)."(default)"
+    if ($appPath) {
+      $candidates += $appPath
+    }
+  }
+
+  $uninstallRoots = @(
+    "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+    "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+  )
+  foreach ($root in $uninstallRoots) {
+    Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue | ForEach-Object {
+      $entry = Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction SilentlyContinue
+      if ($entry.DisplayName -like "Inno Setup*" -and $entry.InstallLocation) {
+        $candidates += (Join-Path $entry.InstallLocation "ISCC.exe")
+      }
+    }
+  }
+
+  $candidates += @(
     (Join-Path ${env:ProgramFiles(x86)} "Inno Setup 7\ISCC.exe"),
     (Join-Path $env:ProgramFiles "Inno Setup 7\ISCC.exe"),
     (Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"),
-    (Join-Path $env:ProgramFiles "Inno Setup 6\ISCC.exe")
+    (Join-Path $env:ProgramFiles "Inno Setup 6\ISCC.exe"),
+    (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 7\ISCC.exe"),
+    (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe")
   )
-  $InnoSetupCompiler = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+  $InnoSetupCompiler = $candidates |
+    Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } |
+    Select-Object -Unique |
+    ForEach-Object { Get-Item -LiteralPath $_ } |
+    Sort-Object { $_.VersionInfo.FileVersionRaw } -Descending |
+    Where-Object {
+      Test-Path -LiteralPath (Join-Path $_.DirectoryName "Languages\ChineseSimplified.isl") -PathType Leaf
+    } |
+    Select-Object -ExpandProperty FullName |
+    Select-Object -First 1
 }
 
 if (-not $InnoSetupCompiler -or -not (Test-Path $InnoSetupCompiler)) {
-  throw "Inno Setup compiler ISCC.exe was not found."
+  throw "Inno Setup compiler ISCC.exe was not found. Install Inno Setup 6/7, add ISCC.exe to PATH, set INNO_SETUP_COMPILER, or pass -InnoSetupCompiler."
 }
 
 Push-Location $ProjectRoot
@@ -46,4 +93,4 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "Windows installer built:"
-Write-Host (Join-Path $ProjectRoot "dist\88FRP-Windows-Setup-1.1.0.exe")
+Write-Host (Join-Path $ProjectRoot "dist\88FRP-Windows-Setup-2.0.0.exe")

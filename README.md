@@ -12,6 +12,7 @@
 - 支持同步 88FRP 远程配置
 - 桌面端与 Web 控制台均可连接 88FRP 账号并显示隧道备注名称
 - 可选择保存加密密码，在登录失效时自动重新登录
+- 现代化响应式 Web 控制台，支持手机、平板、桌面及明暗主题
 - 支持只运行勾选的隧道
 - 同步后保留已保存的隧道选择，新隧道默认关闭
 - 配置编辑、实例启动/停止/重启、运行日志查看
@@ -22,7 +23,7 @@
 请在 GitHub Release 中下载：
 
 ```text
-88FRP-Windows-Setup-1.1.0.exe
+88FRP-Windows-Setup-2.0.0.exe
 ```
 
 双击安装器并按向导完成安装即可。建议使用默认安装目录；也可以安装到固定目录，例如 `D:\88FRP\`。
@@ -107,7 +108,7 @@ npm run build:windows:installer
 ```text
 dist/88FRP-Windows/88FRP.exe
 dist/88FRP-Windows.zip
-dist/88FRP-Windows-Setup-1.1.0.exe
+dist/88FRP-Windows-Setup-2.0.0.exe
 ```
 
 ## 项目结构

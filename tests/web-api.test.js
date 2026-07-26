@@ -75,6 +75,32 @@ test("创建实例时默认使用项目内置远程配置地址", async () => {
   });
 });
 
+test("实例名称可通过 API 完整保存和读取中文字符", async () => {
+  await withServer(async (baseUrl) => {
+    const name = "公司主机 · 远程办公";
+    const createResponse = await fetch(`${baseUrl}/api/instances`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+      },
+      body: JSON.stringify({
+        name,
+        secretKey: "demo-secret",
+      }),
+    });
+    const created = await createResponse.json();
+
+    assert.equal(createResponse.status, 201);
+    assert.equal(created.data.name, name);
+
+    const getResponse = await fetch(`${baseUrl}/api/instances/${created.data.id}`);
+    const fetched = await getResponse.json();
+
+    assert.equal(getResponse.status, 200);
+    assert.equal(fetched.data.name, name);
+  });
+});
+
 test("Web 页面资源包含隧道备注名称和移动端适配入口", async () => {
   const publicDir = path.join(__dirname, "..", "src", "web", "public");
   const [page, script, api, styles] = await Promise.all([
@@ -92,7 +118,30 @@ test("Web 页面资源包含隧道备注名称和移动端适配入口", async (
   assert.match(script, /connectFrpAccount/);
   assert.match(api, /\/api\/88frp\/account\/connect/);
   assert.match(styles, /\.sidebar\.is-expanded/);
-  assert.match(styles, /@media \(max-width: 480px\)/);
+  assert.match(styles, /@media \(max-width: 720px\)/);
+  assert.match(styles, /safe-area-inset-bottom/);
+});
+
+test("Web 核心可提供本地 Lucide 图标字体", async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/css/lucide.woff2`);
+    const bytes = await response.arrayBuffer();
+
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type") || "", /font|octet-stream/);
+    assert.ok(bytes.byteLength > 100000);
+  });
+});
+
+test("Web 核心可提供 88FRP Logo", async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/88frp-logo.png`);
+    const bytes = await response.arrayBuffer();
+
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type") || "", /image\/png/);
+    assert.ok(bytes.byteLength > 100000);
+  });
 });
 
 test("88FRP 账号状态默认未连接且不会泄露凭据", async () => {

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -17,6 +18,13 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using WF = System.Windows.Forms;
 using SD = System.Drawing;
+
+[assembly: AssemblyTitle("88FRP Windows")]
+[assembly: AssemblyProduct("88FRP Windows")]
+[assembly: AssemblyDescription("88FRP Windows 隧道控制台")]
+[assembly: AssemblyCompany("88FRP Windows")]
+[assembly: AssemblyVersion("2.0.0.0")]
+[assembly: AssemblyFileVersion("2.0.0.0")]
 
 internal static class Program
 {
