@@ -74,3 +74,16 @@ test("创建实例时默认使用项目内置远程配置地址", async () => {
     assert.equal(json.data.remoteUrl, DEFAULT_REMOTE_URL);
   });
 });
+
+test("88FRP 账号状态默认未连接且不会泄露凭据", async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/88frp/account`);
+    const json = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(json.success, true);
+    assert.equal(json.data.connected, false);
+    assert.equal(Object.prototype.hasOwnProperty.call(json.data, "encryptedToken"), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(json.data, "encryptedPassword"), false);
+  });
+});

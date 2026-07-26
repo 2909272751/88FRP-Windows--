@@ -39,6 +39,7 @@ class Store {
     this.instancesFile = path.join(dataDir, "instances.json");
     this.settingsFile = path.join(dataDir, "settings.json");
     this.appLogFile = path.join(dataDir, "app.log");
+    this.frpAccountFile = path.join(dataDir, "88frp-account.json");
     this.instancesDir = path.join(dataDir, "instances");
   }
 
@@ -47,6 +48,7 @@ class Store {
     await this.ensureJsonFile(this.instancesFile, []);
     await this.ensureJsonFile(this.settingsFile, DEFAULT_SETTINGS);
     await this.ensureTextFile(this.appLogFile, "");
+    await this.ensureJsonFile(this.frpAccountFile, {});
   }
 
   async ensureJsonFile(filePath, fallbackValue) {
@@ -196,6 +198,29 @@ class Store {
     return selection || {};
   }
 
+  async getTunnelLabels(instanceId) {
+    return this.readJson(this.getTunnelLabelsPath(instanceId), {});
+  }
+
+  async saveTunnelLabels(instanceId, labels) {
+    await this.ensureInstanceDirectory(instanceId);
+    await this.writeJson(this.getTunnelLabelsPath(instanceId), labels || {});
+    return labels || {};
+  }
+
+  async getFrpAccount() {
+    return this.readJson(this.frpAccountFile, {});
+  }
+
+  async saveFrpAccount(account) {
+    await this.writeJson(this.frpAccountFile, account || {});
+    return account || {};
+  }
+
+  async clearFrpAccount() {
+    await this.writeJson(this.frpAccountFile, {});
+  }
+
   async getRuntime(instanceId) {
     return this.readJson(this.getRuntimePath(instanceId), DEFAULT_RUNTIME);
   }
@@ -247,6 +272,10 @@ class Store {
 
   getTunnelSelectionPath(instanceId) {
     return path.join(this.getInstanceDir(instanceId), "selection.json");
+  }
+
+  getTunnelLabelsPath(instanceId) {
+    return path.join(this.getInstanceDir(instanceId), "tunnel-labels.json");
   }
 
   getRuntimePath(instanceId) {

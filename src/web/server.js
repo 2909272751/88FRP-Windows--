@@ -49,6 +49,24 @@ async function createWebApp() {
     sendJson(res, await context.instanceService.list());
   }));
 
+  app.get("/api/88frp/account", asyncHandler(async (_req, res) => {
+    sendJson(res, await context.frpAccountService.getStatus());
+  }));
+
+  app.post("/api/88frp/account/connect", asyncHandler(async (req, res) => {
+    const account = await context.frpAccountService.connect(req.body || {});
+    const refresh = await context.frpAccountService.refreshTunnelLabels();
+    if (refresh.reason === "updated") {
+      const instances = await context.instanceService.list();
+      for (const instance of instances) await context.tunnelService.applyLabels(instance.id, refresh.labels);
+    }
+    sendJson(res, { account, refreshed: refresh.reason === "updated" }, "88FRP 账号已连接。");
+  }));
+
+  app.delete("/api/88frp/account", asyncHandler(async (_req, res) => {
+    sendJson(res, await context.frpAccountService.disconnect(), "88FRP 账号已断开并清除本机凭据。");
+  }));
+
   app.post("/api/instances", asyncHandler(async (req, res) => {
     const instance = await context.instanceService.create(req.body || {});
     sendJson(res, instance, "实例已创建。", 201);

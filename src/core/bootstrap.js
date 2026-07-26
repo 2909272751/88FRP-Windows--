@@ -4,6 +4,8 @@ const { InstanceService } = require("./instance-service");
 const { RuntimeService } = require("./runtime-service");
 const { SyncService } = require("./sync-service");
 const { TunnelService } = require("./tunnel-service");
+const { FrpAccountService } = require("./frp-account-service");
+const { WindowsCredentialStore } = require("./windows-credential-store");
 const {
   DEFAULT_AUTO_SYNC_INTERVAL_MS,
   DEFAULT_DATA_DIR,
@@ -39,6 +41,7 @@ async function createAppContext(options = {}) {
   });
 
   const tunnelService = new TunnelService({ store });
+  const frpAccountService = new FrpAccountService({ store, credentialStore: new WindowsCredentialStore() });
 
   const processManager = new ProcessManager({
     store,
@@ -60,7 +63,8 @@ async function createAppContext(options = {}) {
     settings,
     store,
     instanceService: new InstanceService({ store }),
-    syncService: new SyncService({ store, runtimeService, logger, tunnelService }),
+    syncService: new SyncService({ store, runtimeService, logger, tunnelService, frpAccountService }),
+    frpAccountService,
     tunnelService,
   };
 }

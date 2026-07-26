@@ -57,3 +57,18 @@ test("new or unselected tunnels default to disabled", () => {
   assert.doesNotMatch(runtimeConfig, /name = "rdp"/);
   assert.doesNotMatch(runtimeConfig, /name = "web"/);
 });
+
+test("shows cached display names without changing the FRPC selection key", async () => {
+  const { TunnelService } = require("../src/core/tunnel-service");
+  const store = {
+    async readConfig() { return SAMPLE_CONFIG; },
+    async getTunnelSelection() { return { rdp: true }; },
+    async getTunnelLabels() { return { rdp: { displayName: "公司电脑" } }; },
+  };
+  const service = new TunnelService({ store });
+  const result = await service.list("instance-1");
+
+  assert.equal(result.tunnels[0].name, "rdp");
+  assert.equal(result.tunnels[0].displayName, "公司电脑");
+  assert.equal(result.tunnels[0].enabled, true);
+});

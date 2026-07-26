@@ -94,6 +94,8 @@ internal sealed class MainWindow : Window
     private string currentInstanceId = "";
     private bool exiting;
     private Button autoStartButton;
+    private Button frpAccountButton;
+    private TextBlock frpAccountStatus = new TextBlock();
 
     private static readonly Brush SidebarBrush = new SolidColorBrush(Color.FromRgb(20, 31, 48));
     private static readonly Brush AppBrush = new SolidColorBrush(Color.FromRgb(246, 248, 251));
@@ -288,6 +290,13 @@ internal sealed class MainWindow : Window
         autoStartButton = OutlineButton(NativeClient.IsAutoStartEnabled() ? "关闭开机自启" : "开启开机自启", AccentBrush);
         autoStartButton.Click += delegate { Safe(ToggleAutoStart); };
         panel.Children.Add(autoStartButton);
+        frpAccountButton = OutlineButton("连接 88FRP", AccentBrush);
+        frpAccountButton.Click += delegate { Safe(ManageFrpAccount); };
+        panel.Children.Add(frpAccountButton);
+        frpAccountStatus.Foreground = MutedBrush;
+        frpAccountStatus.VerticalAlignment = VerticalAlignment.Center;
+        frpAccountStatus.Margin = new Thickness(10, 0, 0, 0);
+        panel.Children.Add(frpAccountStatus);
         return card;
     }
 
@@ -501,6 +510,7 @@ internal sealed class MainWindow : Window
     private void RefreshAll()
     {
         backendValue.Text = client.IsBackendHealthy() ? "正常" : "离线";
+        RefreshFrpAccountStatus();
         RefreshInstances(true);
         if (!string.IsNullOrEmpty(currentInstanceId)) LoadCurrentDetails();
     }
@@ -558,13 +568,15 @@ internal sealed class MainWindow : Window
         {
             Dictionary<string, object> tunnel = NativeClient.AsDict(row);
             tunnels.Add(tunnel);
+            string displayName = NativeClient.GetString(tunnel, "displayName");
+            string title = displayName == "" ? NativeClient.GetString(tunnel, "name") : displayName + "  ·  " + NativeClient.GetString(tunnel, "name");
             CheckBox check = new CheckBox
             {
                 IsChecked = NativeClient.GetBool(tunnel, "enabled"),
                 Margin = new Thickness(0, 0, 0, 8),
                 Padding = new Thickness(10),
                 FontSize = 15,
-                Content = NativeClient.GetString(tunnel, "name") + "    " + NativeClient.GetString(tunnel, "type") + "    本地 " + NativeClient.GetString(tunnel, "localPort") + "  →  远程 " + NativeClient.GetString(tunnel, "remotePort")
+                Content = title + "    " + NativeClient.GetString(tunnel, "type") + "    本地 " + NativeClient.GetString(tunnel, "localPort") + "  →  远程 " + NativeClient.GetString(tunnel, "remotePort")
             };
             tunnelPanel.Children.Add(check);
         }
@@ -653,6 +665,47 @@ internal sealed class MainWindow : Window
             NativeClient.EnableAutoStart();
             autoStartButton.Content = "关闭开机自启";
         }
+    }
+
+    private void RefreshFrpAccountStatus()
+    {
+        if (frpAccountButton == null) return;
+        Dictionary<string, object> account = client.GetDict("/api/88frp/account");
+        bool connected = NativeClient.GetBool(account, "connected");
+        string username = NativeClient.GetString(account, "username");
+        bool autoLogin = NativeClient.GetBool(account, "autoLoginEnabled");
+        frpAccountButton.Content = connected ? "管理 88FRP" : "连接 88FRP";
+        frpAccountStatus.Text = connected ? (username + (autoLogin ? " · 自动登录" : " · 需手动登录")) : "未连接";
+    }
+
+    private void ManageFrpAccount()
+    {
+        Dictionary<string, object> account = client.GetDict("/api/88frp/account");
+        if (NativeClient.GetBool(account, "connected"))
+        {
+            MessageBoxResult result = MessageBox.Show(
+                "断开后会删除本机保存的 88FRP 登录令牌和密码，已缓存的隧道名称会保留。\n\n是否断开？",
+                Program.AppName,
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question
+            );
+            if (result != MessageBoxResult.Yes) return;
+            client.DeleteDict("/api/88frp/account");
+            RefreshFrpAccountStatus();
+            MessageBox.Show("88FRP 账号已断开。", Program.AppName);
+            return;
+        }
+
+        FrpAccountWindow dialog = new FrpAccountWindow { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        Dictionary<string, object> payload = new Dictionary<string, object>();
+        payload["username"] = dialog.Username;
+        payload["password"] = dialog.Password;
+        payload["autoLoginEnabled"] = dialog.AutoLoginEnabled;
+        client.PostDict("/api/88frp/account/connect", payload);
+        RefreshFrpAccountStatus();
+        LoadTunnels();
+        MessageBox.Show("88FRP 已连接。同步配置发生变化时会自动刷新隧道名称。", Program.AppName);
     }
 
     private void Safe(Action action)
@@ -756,6 +809,68 @@ internal sealed class CreateInstanceWindow : Window
         Grid.SetRow(label, row);
         Grid.SetColumn(label, 0);
         grid.Children.Add(label);
+    }
+}
+
+internal sealed class FrpAccountWindow : Window
+{
+    private readonly TextBox usernameBox = new TextBox();
+    private readonly PasswordBox passwordBox = new PasswordBox();
+    private readonly CheckBox autoLoginBox = new CheckBox { Content = "保存密码并在登录失效时自动重新登录", IsChecked = true };
+    public string Username { get { return usernameBox.Text.Trim(); } }
+    public string Password { get { return passwordBox.Password; } }
+    public bool AutoLoginEnabled { get { return autoLoginBox.IsChecked == true; } }
+
+    public FrpAccountWindow()
+    {
+        Title = "连接 88FRP 账号";
+        Width = 480;
+        Height = 280;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        ResizeMode = ResizeMode.NoResize;
+        FontFamily = new FontFamily("Microsoft YaHei UI");
+        Icon = NativeClient.LoadIconImage();
+        Grid grid = new Grid { Margin = new Thickness(20) };
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(74) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Content = grid;
+        AddLabel(grid, "账号", 0);
+        usernameBox.Height = 31;
+        usernameBox.VerticalContentAlignment = VerticalAlignment.Center;
+        Grid.SetRow(usernameBox, 0); Grid.SetColumn(usernameBox, 1); grid.Children.Add(usernameBox);
+        AddLabel(grid, "密码", 1);
+        passwordBox.Height = 31;
+        passwordBox.Margin = new Thickness(0, 12, 0, 0);
+        Grid.SetRow(passwordBox, 1); Grid.SetColumn(passwordBox, 1); grid.Children.Add(passwordBox);
+        autoLoginBox.Margin = new Thickness(0, 14, 0, 0);
+        autoLoginBox.ToolTip = "仅在当前 Windows 用户下加密保存，不写入日志或配置导出。";
+        Grid.SetRow(autoLoginBox, 2); Grid.SetColumn(autoLoginBox, 1); grid.Children.Add(autoLoginBox);
+        StackPanel actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
+        Button cancel = new Button { Content = "取消", Width = 86, Height = 32, Margin = new Thickness(8, 0, 0, 0) };
+        Button ok = new Button { Content = "连接", Width = 86, Height = 32, Margin = new Thickness(8, 0, 0, 0), IsDefault = true };
+        cancel.Click += delegate { DialogResult = false; };
+        ok.Click += delegate
+        {
+            if (Username == "" || Password == "")
+            {
+                MessageBox.Show("请输入 88FRP 账号和密码。", Program.AppName);
+                return;
+            }
+            DialogResult = true;
+        };
+        actions.Children.Add(cancel);
+        actions.Children.Add(ok);
+        Grid.SetRow(actions, 3); Grid.SetColumnSpan(actions, 2); grid.Children.Add(actions);
+    }
+
+    private void AddLabel(Grid grid, string text, int row)
+    {
+        TextBlock label = new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, row == 0 ? 0 : 12, 12, 0) };
+        Grid.SetRow(label, row); Grid.SetColumn(label, 0); grid.Children.Add(label);
     }
 }
 
@@ -891,6 +1006,7 @@ internal sealed class NativeClient
     public Dictionary<string, object> GetDict(string path) { return AsDict(Request("GET", path, null)); }
     public Dictionary<string, object> PostDict(string path, Dictionary<string, object> payload) { return AsDict(Request("POST", path, payload)); }
     public Dictionary<string, object> PutDict(string path, Dictionary<string, object> payload) { return AsDict(Request("PUT", path, payload)); }
+    public Dictionary<string, object> DeleteDict(string path) { return AsDict(Request("DELETE", path, null)); }
 
     private object Request(string method, string path, Dictionary<string, object> payload)
     {

@@ -112,8 +112,10 @@ class TunnelService {
   async list(instanceId) {
     const configText = await this.store.readConfig(instanceId);
     const selection = await this.store.getTunnelSelection(instanceId);
+    const labels = await this.store.getTunnelLabels(instanceId);
     const tunnels = parseFrpcTunnels(configText).map((tunnel) => ({
       ...tunnel,
+      displayName: labels[tunnel.name] && labels[tunnel.name].displayName ? labels[tunnel.name].displayName : "",
       enabled: Boolean(selection[tunnel.name]),
     }));
 
@@ -122,6 +124,16 @@ class TunnelService {
       tunnels,
       selection,
     };
+  }
+
+  async applyLabels(instanceId, labels) {
+    const tunnels = parseFrpcTunnels(await this.store.readConfig(instanceId));
+    const nextLabels = {};
+    for (const tunnel of tunnels) {
+      if (labels[tunnel.name]) nextLabels[tunnel.name] = labels[tunnel.name];
+    }
+    await this.store.saveTunnelLabels(instanceId, nextLabels);
+    return nextLabels;
   }
 
   async reconcileSelection(instanceId) {

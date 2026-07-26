@@ -23,11 +23,12 @@ function validateConfigText(configText) {
 }
 
 class SyncService {
-  constructor({ store, runtimeService, logger, tunnelService }) {
+  constructor({ store, runtimeService, logger, tunnelService, frpAccountService }) {
     this.store = store;
     this.runtimeService = runtimeService;
     this.logger = logger;
     this.tunnelService = tunnelService;
+    this.frpAccountService = frpAccountService;
   }
 
   async saveConfig(instanceId, configText) {
@@ -100,12 +101,22 @@ class SyncService {
     if (this.tunnelService) {
       await this.tunnelService.reconcileSelection(instanceId);
     }
+    let labelRefresh = { attempted: false, reason: "not-connected" };
+    if (this.frpAccountService && this.tunnelService) {
+      labelRefresh = await this.frpAccountService.refreshTunnelLabels();
+      if (labelRefresh.reason === "updated") {
+        await this.tunnelService.applyLabels(instanceId, labelRefresh.labels);
+      } else if (labelRefresh.reason === "failed") {
+        await this.logger.warn(`实例 ${instance.name} 名称同步失败: ${labelRefresh.error}`);
+      }
+    }
 
     if (!options.restartOnChange) {
       return {
         changed: true,
         runtimeAction: "saved",
         validation: remote.validation,
+        labelRefresh,
       };
     }
 
@@ -116,6 +127,7 @@ class SyncService {
         changed: true,
         runtimeAction: "restarted",
         validation: remote.validation,
+        labelRefresh,
       };
     }
 
@@ -124,6 +136,7 @@ class SyncService {
       changed: true,
       runtimeAction: "started",
       validation: remote.validation,
+      labelRefresh,
     };
   }
 
