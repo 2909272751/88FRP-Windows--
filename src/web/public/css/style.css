@@ -53,6 +53,33 @@ textarea {
   border-bottom: 1px solid var(--border-color);
 }
 
+.sidebar-title-row {
+  display: none;
+}
+
+.sidebar-close,
+.mobile-instances-button {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.sidebar-close {
+  padding: 8px 10px;
+}
+
+.mobile-instances-button {
+  display: none;
+}
+
+.empty-instances-button {
+  display: none;
+}
+
 .btn-create {
   width: 100%;
   padding: 10px;
@@ -140,6 +167,7 @@ textarea {
 .main-content {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   background: #fff;
@@ -169,6 +197,11 @@ textarea {
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.toolbar-left > .btn {
+  min-width: 72px;
+  justify-content: center;
 }
 
 .inst-status-info {
@@ -205,6 +238,27 @@ textarea {
   max-width: 100%;
   outline: none;
 }
+
+.account-control {
+  max-width: 260px;
+  min-height: 38px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+}
+
+.account-control:hover { border-color: var(--accent-blue); background: var(--active-bg); }
+.account-control.is-connected { border-color: #a7f3d0; background: #ecfdf5; }
+.account-control-label { font-size: 13px; font-weight: 600; }
+.account-control-status { max-width: 238px; color: var(--text-secondary); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .input-secret:focus,
 .form-control:focus,
@@ -423,6 +477,14 @@ textarea.editor {
   overflow-wrap: anywhere;
 }
 
+.tunnel-id {
+  color: #64748b;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .tunnel-meta {
   font-size: 12px;
   color: #64748b;
@@ -461,6 +523,9 @@ textarea.editor {
   font-weight: 600;
   margin-bottom: 20px;
 }
+
+.modal-description { margin: -10px 0 18px; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+.account-security-note { margin-top: 12px; color: #64748b; font-size: 12px; line-height: 1.5; }
 
 .form-label-row {
   display: flex;
@@ -523,23 +588,58 @@ textarea.editor {
 
 @media (max-width: 768px) {
   body {
-    overflow: auto;
+    overflow: hidden;
   }
 
   #app {
-    flex-direction: column;
-    height: auto;
+    height: 100dvh;
+    position: relative;
   }
 
   .sidebar {
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid var(--border-color);
+    position: absolute;
+    z-index: 50;
+    inset: 0 auto 0 0;
+    width: min(86vw, 340px);
+    transform: translateX(-105%);
+    transition: transform 0.2s ease;
+    box-shadow: 12px 0 28px rgba(15, 23, 42, 0.16);
   }
 
+  .sidebar.is-expanded { transform: translateX(0); }
+
   .instance-list {
-    max-height: 30vh;
+    max-height: none;
   }
+
+  .sidebar-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .sidebar-title {
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .mobile-instances-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+    min-height: 34px;
+    padding: 0 12px;
+  }
+
+  .empty-instances-button {
+    display: inline-flex;
+    align-self: auto;
+  }
+
+  .main-content { width: 100%; }
 
   .toolbar {
     padding: 14px 16px;
@@ -551,6 +651,10 @@ textarea.editor {
   .toolbar-left,
   .toolbar-right {
     width: 100%;
+  }
+
+  .toolbar-left > .btn {
+    flex: 1 1 112px;
   }
 
   .inst-status-info {
@@ -565,6 +669,9 @@ textarea.editor {
     width: 100%;
   }
 
+  .account-control { width: 100%; max-width: none; }
+  .account-control-status { max-width: 100%; }
+
   .btn {
     justify-content: center;
   }
@@ -575,9 +682,33 @@ textarea.editor {
     overflow-x: auto;
   }
 
+  .tab {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+  }
+
   textarea.editor,
   .log-view {
     padding: 16px;
+  }
+
+  textarea.editor { font-size: 14px; }
+
+  .tunnels-hint,
+  .tunnels-list { padding-left: 16px; padding-right: 16px; }
+
+  .tunnel-row {
+    min-height: 76px;
+    align-items: flex-start;
+    padding: 14px 12px;
+  }
+
+  .tunnel-row input {
+    width: 20px;
+    height: 20px;
+    margin-top: 2px;
   }
 
   .panel-actions {
@@ -623,10 +754,7 @@ textarea.editor {
     padding: 12px;
   }
 
-  .instance-list {
-    padding: 6px;
-    max-height: 34vh;
-  }
+  .instance-list { padding: 6px; }
 
   .instance-item {
     padding: 10px;
@@ -646,6 +774,8 @@ textarea.editor {
     flex: 1 1 calc(50% - 10px);
   }
 
+  .toolbar-left > .btn { min-height: 40px; }
+
   .toolbar-right .get-secret-link {
     width: 100%;
   }
@@ -659,7 +789,7 @@ textarea.editor {
   }
 
   .tab {
-    flex: 1 0 auto;
+    flex: 1 0 106px;
     text-align: center;
   }
 
@@ -676,4 +806,13 @@ textarea.editor {
     padding: 24px 16px;
     text-align: center;
   }
+
+  .tunnels-hint {
+    font-size: 12px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .tunnel-name { font-size: 14px; }
+  .tunnel-meta { line-height: 1.5; }
 }

@@ -26,6 +26,18 @@ window.API = (() => {
     getHealth() {
       return request("/api/health");
     },
+    getFrpAccount() {
+      return request("/api/88frp/account");
+    },
+    connectFrpAccount(payload) {
+      return request("/api/88frp/account/connect", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    },
+    disconnectFrpAccount() {
+      return request("/api/88frp/account", { method: "DELETE" });
+    },
     getInstances() {
       return request("/api/instances");
     },

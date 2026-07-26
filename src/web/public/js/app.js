@@ -8,13 +8,16 @@ document.addEventListener("DOMContentLoaded", () => {
     originalAutoSyncEnabled: false,
     tunnels: [],
     tunnelSelection: {},
+    instancesExpanded: false,
     pollingTimer: null,
     toastTimer: null,
     busy: false,
+    frpAccount: { connected: false },
   };
 
   const els = {
     instanceList: document.getElementById("instanceList"),
+    sidebar: document.getElementById("sidebar"),
     emptyState: document.getElementById("emptyState"),
     workbench: document.getElementById("workbench"),
     inputSecret: document.getElementById("inputSecret"),
@@ -35,12 +38,29 @@ document.addEventListener("DOMContentLoaded", () => {
     btnReloadTunnels: document.getElementById("btnReloadTunnels"),
     btnSelectNoTunnels: document.getElementById("btnSelectNoTunnels"),
     btnSaveTunnels: document.getElementById("btnSaveTunnels"),
+    btnShowInstances: document.getElementById("btnShowInstances"),
+    btnShowInstancesEmpty: document.getElementById("btnShowInstancesEmpty"),
+    btnHideInstances: document.getElementById("btnHideInstances"),
+    btnFrpAccount: document.getElementById("btnFrpAccount"),
+    frpAccountStatus: document.getElementById("frpAccountStatus"),
+    frpAccountModal: document.getElementById("frpAccountModal"),
+    frpAccountUsername: document.getElementById("frpAccountUsername"),
+    frpAccountPassword: document.getElementById("frpAccountPassword"),
+    frpAccountAutoLogin: document.getElementById("frpAccountAutoLogin"),
+    btnCancelFrpAccount: document.getElementById("btnCancelFrpAccount"),
+    btnConnectFrpAccount: document.getElementById("btnConnectFrpAccount"),
     newInstName: document.getElementById("newInstName"),
     newInstSecret: document.getElementById("newInstSecret"),
     newInstAutoSync: document.getElementById("newInstAutoSync"),
   };
 
   document.getElementById("btnShowCreate").addEventListener("click", openCreateModal);
+  els.btnShowInstances.addEventListener("click", () => setInstancesExpanded(true));
+  els.btnShowInstancesEmpty.addEventListener("click", () => setInstancesExpanded(true));
+  els.btnFrpAccount.addEventListener("click", manageFrpAccount);
+  els.btnCancelFrpAccount.addEventListener("click", closeFrpAccountModal);
+  els.btnConnectFrpAccount.addEventListener("click", connectFrpAccount);
+  els.btnHideInstances.addEventListener("click", () => setInstancesExpanded(false));
   document.getElementById("btnCancelCreate").addEventListener("click", closeCreateModal);
   document.getElementById("btnConfirmCreate").addEventListener("click", handleCreate);
   els.btnRefreshLog.addEventListener("click", loadLogs);
@@ -73,8 +93,67 @@ document.addEventListener("DOMContentLoaded", () => {
   init().catch((error) => showToast(error.message));
 
   async function init() {
-    await loadInstances();
+    await Promise.all([loadInstances(), loadFrpAccount()]);
     startPolling();
+  }
+
+  async function loadFrpAccount() {
+    const res = await API.getFrpAccount();
+    state.frpAccount = res.data || { connected: false };
+    renderFrpAccount();
+  }
+
+  function renderFrpAccount() {
+    const account = state.frpAccount || {};
+    const connected = Boolean(account.connected);
+    els.btnFrpAccount.classList.toggle("is-connected", connected);
+    els.btnFrpAccount.querySelector(".account-control-label").textContent = connected ? "管理 88FRP" : "连接 88FRP";
+    els.frpAccountStatus.textContent = connected
+      ? `${account.username || "已连接"} · ${account.autoLoginEnabled ? "自动登录" : "需手动登录"}`
+      : "未连接";
+  }
+
+  async function manageFrpAccount() {
+    if (state.frpAccount?.connected) {
+      if (!window.confirm("断开后会清除本机保存的 88FRP 登录令牌和密码，已缓存的隧道名称会保留。是否断开？")) return;
+      await withBusy(async () => {
+        await API.disconnectFrpAccount();
+        await loadFrpAccount();
+        showToast("88FRP 账号已断开");
+      });
+      return;
+    }
+    els.frpAccountUsername.value = "";
+    els.frpAccountPassword.value = "";
+    els.frpAccountAutoLogin.checked = true;
+    els.frpAccountModal.style.display = "flex";
+    els.frpAccountUsername.focus();
+  }
+
+  function closeFrpAccountModal() {
+    els.frpAccountModal.style.display = "none";
+    els.frpAccountPassword.value = "";
+  }
+
+  async function connectFrpAccount() {
+    const username = els.frpAccountUsername.value.trim();
+    const password = els.frpAccountPassword.value;
+    if (!username || !password) {
+      showToast("请输入 88FRP 账号和密码");
+      return;
+    }
+    await withBusy(async () => {
+      const result = await API.connectFrpAccount({
+        username,
+        password,
+        autoLoginEnabled: els.frpAccountAutoLogin.checked,
+      });
+      closeFrpAccountModal();
+      state.frpAccount = result.data?.account || { connected: true, username, autoLoginEnabled: els.frpAccountAutoLogin.checked };
+      renderFrpAccount();
+      if (state.activeView === "tunnels") await loadTunnels();
+      showToast(result.data?.refreshed ? "88FRP 已连接，隧道备注已更新" : "88FRP 已连接");
+    });
   }
 
   async function loadInstances() {
@@ -112,6 +191,7 @@ document.addEventListener("DOMContentLoaded", () => {
     state.tunnels = [];
     state.tunnelSelection = {};
     renderInstanceList();
+    setInstancesExpanded(false);
     await refreshCurrentInstance();
   }
 
@@ -246,7 +326,8 @@ document.addEventListener("DOMContentLoaded", () => {
       row.innerHTML = `
         <input type="checkbox" ${state.tunnelSelection[tunnel.name] ? "checked" : ""}>
         <span class="tunnel-body">
-          <span class="tunnel-name">${escapeHtml(tunnel.name)}</span>
+          <span class="tunnel-name">${escapeHtml(tunnel.displayName || tunnel.name)}</span>
+          ${tunnel.displayName ? `<span class="tunnel-id">FRPC 标识：${escapeHtml(tunnel.name)}</span>` : ""}
           <span class="tunnel-meta">${escapeHtml(formatTunnelMeta(tunnel))}</span>
         </span>
       `;
@@ -336,7 +417,12 @@ document.addEventListener("DOMContentLoaded", () => {
         autoSyncEnabled: els.inputAutoSync.checked,
       });
       const res = await API.syncInstance(current.id, true);
-      showToast(res.data.changed ? `同步成功，动作：${res.data.runtimeAction}` : "远程配置没有变化");
+      if (res.data.changed) {
+        const labelMessage = res.data.labelRefresh?.reason === "updated" ? "，备注名称已更新" : "";
+        showToast(`同步成功，动作：${res.data.runtimeAction}${labelMessage}`);
+      } else {
+        showToast("远程配置没有变化");
+      }
       await loadInstances();
       await refreshCurrentInstance();
     });
@@ -389,6 +475,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function closeCreateModal() {
     els.createModal.style.display = "none";
+  }
+
+  function setInstancesExpanded(expanded) {
+    state.instancesExpanded = expanded;
+    els.sidebar.classList.toggle("is-expanded", expanded);
+    els.btnShowInstances.setAttribute("aria-expanded", String(expanded));
   }
 
   function startPolling() {

@@ -16,6 +16,7 @@
     "build:web:single:linux-arm64": "node ./scripts/build-web-single-exe.js --target linux-arm64",
     "build:web:single:linux-all": "node ./scripts/build-web-single-exe.js --target linux-x64,linux-arm64",
     "build:windows:native": "powershell -ExecutionPolicy Bypass -File ./scripts/build-windows-native.ps1",
+    "build:windows:installer": "powershell -ExecutionPolicy Bypass -File ./scripts/build-windows-installer.ps1",
     "service:install:windows": "powershell -ExecutionPolicy Bypass -File ./scripts/install-windows-service.ps1",
     "service:uninstall:windows": "powershell -ExecutionPolicy Bypass -File ./scripts/uninstall-windows-service.ps1",
     "dev:cli": "node ./src/cli/index.js menu",

@@ -1,15 +1,27 @@
+param(
+  [string]$PublishDir = "",
+  [string]$ZipPath = ""
+)
+
 $ErrorActionPreference = "Stop"
 
 $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $Source = Join-Path $ProjectRoot "src\windows-launcher\WpfClient.cs"
 $DistDir = Join-Path $ProjectRoot "dist"
-$PublishDir = Join-Path $DistDir "88FRP-Windows"
+$DefaultPublishDir = Join-Path $DistDir "88FRP-Windows"
 $BackendExe = Join-Path $DistDir "88frp-web.exe"
-$OutputExe = Join-Path $PublishDir "88FRP.exe"
 $Csc = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 $WpfDir = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\WPF"
 $IconPath = Join-Path $ProjectRoot "assets\88frp-logo.ico"
 $ManifestPath = Join-Path $ProjectRoot "src\windows-launcher\app.manifest"
+
+if (-not $PublishDir) {
+  $PublishDir = $DefaultPublishDir
+}
+if (-not $ZipPath) {
+  $ZipPath = Join-Path $DistDir "88FRP-Windows.zip"
+}
+$OutputExe = Join-Path $PublishDir "88FRP.exe"
 
 if (-not (Test-Path $Csc)) {
   throw "Cannot find .NET Framework C# compiler: $Csc"
@@ -77,7 +89,6 @@ $Readme = @(
 ) -join [Environment]::NewLine
 Set-Content -Path (Join-Path $PublishDir "README.txt") -Value $Readme -Encoding UTF8
 
-$ZipPath = Join-Path $DistDir "88FRP-Windows.zip"
 if (Test-Path $ZipPath) {
   Remove-Item -LiteralPath $ZipPath -Force
 }

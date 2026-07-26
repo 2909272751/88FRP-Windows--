@@ -10,6 +10,8 @@
 - 注册表启动项 + Windows 计划任务双通道自启动
 - 后台核心自动守护，异常时自动拉起
 - 支持同步 88FRP 远程配置
+- 桌面端与 Web 控制台均可连接 88FRP 账号并显示隧道备注名称
+- 可选择保存加密密码，在登录失效时自动重新登录
 - 支持只运行勾选的隧道
 - 同步后保留已保存的隧道选择，新隧道默认关闭
 - 配置编辑、实例启动/停止/重启、运行日志查看
@@ -20,24 +22,21 @@
 请在 GitHub Release 中下载：
 
 ```text
-88FRP-Windows.zip
+88FRP-Windows-Setup-1.1.0.exe
 ```
 
-解压后双击：
+双击安装器并按向导完成安装即可。建议使用默认安装目录；也可以安装到固定目录，例如 `D:\88FRP\`。
 
-```text
-88FRP.exe
-```
+安装后从开始菜单或桌面快捷方式打开 `88FRP`。不要单独打开 `88frp-web.exe`，它是隐藏运行的后台核心。
 
-不要单独打开 `88frp-web.exe`，它是隐藏运行的后台核心。
+## 88FRP 账号与备注名称
 
-建议解压到固定目录，例如：
+在桌面端或 Web 控制台点击“连接 88FRP”，输入 88FRP 用户名和密码即可。
 
-```text
-D:\Apps\88FRP\
-```
-
-不要放在临时下载目录，因为自启动会记住 `88FRP.exe` 的路径。
+- 连接完成后会获取已有隧道的官方备注名称
+- 同步配置发生变化时自动更新备注名称
+- Web 隧道列表优先显示备注名称，并保留 FRPC 标识和端口信息
+- 默认使用 Windows DPAPI 加密保存密码；取消勾选后，只保存登录令牌，不会自动重新登录
 
 ## 隧道选择逻辑
 
@@ -97,11 +96,18 @@ npm test
 npm run build:windows:native
 ```
 
+构建 Windows 安装器（需安装 Inno Setup 6 或 7）：
+
+```powershell
+npm run build:windows:installer
+```
+
 构建结果：
 
 ```text
 dist/88FRP-Windows/88FRP.exe
 dist/88FRP-Windows.zip
+dist/88FRP-Windows-Setup-1.1.0.exe
 ```
 
 ## 项目结构

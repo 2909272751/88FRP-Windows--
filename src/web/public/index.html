@@ -8,8 +8,12 @@
 </head>
 <body>
   <div id="app">
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
+        <div class="sidebar-title-row">
+          <span class="sidebar-title">实例</span>
+          <button class="sidebar-close" id="btnHideInstances" type="button" aria-label="收起实例列表">收起</button>
+        </div>
         <button class="btn-create" id="btnShowCreate">
           <span>+</span> 创建实例
         </button>
@@ -20,10 +24,16 @@
     <main class="main-content">
       <div id="emptyState" class="empty-state">
         <p>请选择或创建一个实例开始管理</p>
+        <button class="mobile-instances-button empty-instances-button" id="btnShowInstancesEmpty" type="button">
+          选择实例
+        </button>
       </div>
 
       <div id="workbench" style="display: none; flex: 1; flex-direction: column;">
         <header class="toolbar">
+          <button class="mobile-instances-button" id="btnShowInstances" type="button" aria-expanded="false">
+            实例列表
+          </button>
           <div class="toolbar-left">
             <button class="btn btn-primary" id="btnStart" style="display: none;">启动</button>
             <button class="btn btn-primary" id="btnRestart" style="display: none;">重启</button>
@@ -31,6 +41,10 @@
             <div id="instStatusInfo" class="inst-status-info"></div>
           </div>
           <div class="toolbar-right">
+            <button class="account-control" id="btnFrpAccount" type="button">
+              <span class="account-control-label">连接 88FRP</span>
+              <span class="account-control-status" id="frpAccountStatus">未连接</span>
+            </button>
             <input type="text" class="input-secret" id="inputSecret" placeholder="输入密钥 (secret)">
             <label class="toggle-option" for="inputAutoSync">
               <input type="checkbox" id="inputAutoSync">
@@ -100,6 +114,30 @@
       <div class="modal-actions">
         <button class="btn btn-secondary" id="btnCancelCreate">取消</button>
         <button class="btn btn-primary" id="btnConfirmCreate">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="frpAccountModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="frpAccountTitle">
+    <div class="modal account-modal">
+      <h3 class="modal-title" id="frpAccountTitle">连接 88FRP 账号</h3>
+      <p class="modal-description">连接后，同步配置发生变化时会自动更新隧道备注名称。</p>
+      <div class="form-group">
+        <label for="frpAccountUsername">账号</label>
+        <input type="text" id="frpAccountUsername" class="form-control" autocomplete="username" placeholder="88FRP 用户名或邮箱">
+      </div>
+      <div class="form-group">
+        <label for="frpAccountPassword">密码</label>
+        <input type="password" id="frpAccountPassword" class="form-control" autocomplete="current-password" placeholder="输入 88FRP 密码">
+      </div>
+      <label class="checkbox-row" for="frpAccountAutoLogin">
+        <input type="checkbox" id="frpAccountAutoLogin" checked>
+        <span>保存密码并在登录失效时自动重新登录</span>
+      </label>
+      <p class="account-security-note">密码仅使用当前 Windows 用户的加密保护保存，不会写入配置文件或日志。</p>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="btnCancelFrpAccount" type="button">取消</button>
+        <button class="btn btn-primary" id="btnConnectFrpAccount" type="button">连接账号</button>
       </div>
     </div>
   </div>

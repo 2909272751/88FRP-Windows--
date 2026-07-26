@@ -75,6 +75,26 @@ test("创建实例时默认使用项目内置远程配置地址", async () => {
   });
 });
 
+test("Web 页面资源包含隧道备注名称和移动端适配入口", async () => {
+  const publicDir = path.join(__dirname, "..", "src", "web", "public");
+  const [page, script, api, styles] = await Promise.all([
+    fs.readFile(path.join(publicDir, "index.html"), "utf8"),
+    fs.readFile(path.join(publicDir, "js", "app.js"), "utf8"),
+    fs.readFile(path.join(publicDir, "js", "api.js"), "utf8"),
+    fs.readFile(path.join(publicDir, "css", "style.css"), "utf8"),
+  ]);
+
+  assert.match(page, /btnShowInstances/);
+  assert.match(page, /btnShowInstancesEmpty/);
+  assert.match(page, /btnFrpAccount/);
+  assert.match(script, /tunnel\.displayName \|\| tunnel\.name/);
+  assert.match(script, /labelRefresh\?\.reason === "updated"/);
+  assert.match(script, /connectFrpAccount/);
+  assert.match(api, /\/api\/88frp\/account\/connect/);
+  assert.match(styles, /\.sidebar\.is-expanded/);
+  assert.match(styles, /@media \(max-width: 480px\)/);
+});
+
 test("88FRP 账号状态默认未连接且不会泄露凭据", async () => {
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/api/88frp/account`);
