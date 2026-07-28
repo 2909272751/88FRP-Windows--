@@ -23,7 +23,7 @@
 请在 GitHub Release 中下载：
 
 ```text
-88FRP-Windows-Setup-2.0.0.exe
+88FRP-Windows-Setup-2.0.1.exe
 ```
 
 双击安装器并按向导完成安装即可。建议使用默认安装目录；也可以安装到固定目录，例如 `D:\88FRP\`。
@@ -108,7 +108,7 @@ npm run build:windows:installer
 ```text
 dist/88FRP-Windows/88FRP.exe
 dist/88FRP-Windows.zip
-dist/88FRP-Windows-Setup-2.0.0.exe
+dist/88FRP-Windows-Setup-2.0.1.exe
 ```
 
 ## 项目结构

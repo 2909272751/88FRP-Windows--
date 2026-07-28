@@ -8,8 +8,9 @@ preloadEnvFromArgv();
 
 const { createAppContext } = require("../core/bootstrap");
 const { validateConfigText } = require("../core/sync-service");
+const { acquireProcessLock } = require("../shared/process-lock");
 const { prepareRuntimeAssets } = require("../shared/runtime-assets");
-const { getPublicDir } = require("../shared/runtime-env");
+const { getPublicDir, getRuntimeRoot } = require("../shared/runtime-env");
 
 function asyncHandler(handler) {
   return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
@@ -23,16 +24,25 @@ function sendJson(res, data, message = "ok", statusCode = 200) {
   });
 }
 
-async function createWebApp() {
+async function createWebApp(options = {}) {
   await prepareRuntimeAssets();
   const context = await createAppContext();
   const app = express();
   const publicDir = getPublicDir();
-
-  await context.processManager.hydrateRuntimeState();
-  await context.runtimeService.restoreOnBoot();
   const scheduler = context.syncService.startAutoSyncScheduler();
-  await scheduler.start();
+  let runtimeInitialized = false;
+
+  const initializeRuntime = async () => {
+    if (runtimeInitialized) return;
+    await context.processManager.hydrateRuntimeState();
+    await context.runtimeService.restoreOnBoot();
+    await scheduler.start();
+    runtimeInitialized = true;
+  };
+
+  if (options.initializeRuntime !== false) {
+    await initializeRuntime();
+  }
 
   app.use(express.json({ limit: "1mb" }));
   app.use(express.static(publicDir));
@@ -166,36 +176,90 @@ async function createWebApp() {
   return {
     app,
     context,
+    initializeRuntime,
     scheduler,
   };
 }
 
-async function startWebServer() {
-  const host = process.env.HOST || "0.0.0.0";
-  const port = Number(process.env.PORT || 8801);
-  const { app, context, scheduler } = await createWebApp();
-  const server = app.listen(port, host, () => {
-    console.log(`88frp web listening on http://${host}:${port}`);
+function listenWebApp(app, port, host) {
+  return new Promise((resolve, reject) => {
+    const server = app.listen(port, host);
+    const onError = (error) => {
+      server.removeListener("listening", onListening);
+      reject(error);
+    };
+    const onListening = () => {
+      server.removeListener("error", onError);
+      resolve(server);
+    };
+    server.once("error", onError);
+    server.once("listening", onListening);
   });
+}
+
+async function startWebServer(options = {}) {
+  const host = options.host || process.env.HOST || "0.0.0.0";
+  const port = Number(options.port || process.env.PORT || 8801);
+  const lockPath = options.lockPath || path.join(getRuntimeRoot(), "web-backend.lock");
+  const processLock = acquireProcessLock(lockPath);
+  let bundle = null;
+  try {
+    bundle = await createWebApp({ initializeRuntime: false });
+  } catch (error) {
+    processLock.release();
+    throw error;
+  }
+  const { app, context, initializeRuntime, scheduler } = bundle;
+  let server = null;
+
+  try {
+    server = await listenWebApp(app, port, host);
+    await initializeRuntime();
+  } catch (error) {
+    scheduler.stop();
+    if (server) {
+      await new Promise((resolve) => server.close(resolve));
+    }
+    processLock.release();
+    throw error;
+  }
+
+  console.log(`88frp web listening on http://${host}:${port}`);
 
   async function shutdown() {
     scheduler.stop();
     await context.logger.warn("web 服务准备停止。");
-    server.close(() => process.exit(0));
+    server.close(() => {
+      processLock.release();
+      process.exit(0);
+    });
   }
 
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
+
+  return {
+    ...bundle,
+    processLock,
+    server,
+  };
 }
 
 module.exports = {
   createWebApp,
+  listenWebApp,
   startWebServer,
 };
 
 if (require.main === module) {
   startWebServer().catch((error) => {
-    console.error(error);
-    process.exit(1);
+    if (error && error.code === "EALREADYRUNNING") {
+      console.error(error.message);
+    } else if (error && error.code === "EADDRINUSE") {
+      console.error(`88frp web port ${process.env.PORT || 8801} is already in use; duplicate backend exits.`);
+    } else {
+      console.error(error);
+    }
+    process.exit(error && error.code === "EALREADYRUNNING" ? 0 : 1);
   });
 }

@@ -3,9 +3,10 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
+const express = require("express");
 
 const { DEFAULT_REMOTE_URL } = require("../src/shared/constants");
-const { createWebApp } = require("../src/web/server");
+const { createWebApp, listenWebApp } = require("../src/web/server");
 
 async function withServer(run) {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "88frp-node-test-"));
@@ -42,6 +43,21 @@ test("健康检查接口返回服务状态", async () => {
     assert.equal(json.success, true);
     assert.equal(json.data.service, "88frp-node-web");
   });
+});
+
+test("后台端口已占用时第二个监听会立即失败", async () => {
+  const first = await listenWebApp(express(), 0, "127.0.0.1");
+  const port = first.address().port;
+  try {
+    await assert.rejects(
+      listenWebApp(express(), port, "127.0.0.1"),
+      (error) => error && error.code === "EADDRINUSE"
+    );
+  } finally {
+    await new Promise((resolve, reject) => {
+      first.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
 });
 
 test("实例列表接口在空数据目录下返回空数组", async () => {

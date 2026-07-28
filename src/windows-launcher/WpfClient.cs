@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows;
 using System.Windows.Controls;
@@ -23,8 +24,8 @@ using SD = System.Drawing;
 [assembly: AssemblyProduct("88FRP Windows")]
 [assembly: AssemblyDescription("88FRP Windows 隧道控制台")]
 [assembly: AssemblyCompany("88FRP Windows")]
-[assembly: AssemblyVersion("2.0.0.0")]
-[assembly: AssemblyFileVersion("2.0.0.0")]
+[assembly: AssemblyVersion("2.0.1.0")]
+[assembly: AssemblyFileVersion("2.0.1.0")]
 
 internal static class Program
 {
@@ -102,8 +103,12 @@ internal sealed class MainWindow : Window
     private string currentInstanceId = "";
     private bool exiting;
     private Button autoStartButton;
+    private Button syncButton;
     private Button frpAccountButton;
     private TextBlock frpAccountStatus = new TextBlock();
+    private int watchdogFailureCount;
+    private int watchdogCheckRunning;
+    private bool longOperationRunning;
 
     private static readonly Brush SidebarBrush = new SolidColorBrush(Color.FromRgb(20, 31, 48));
     private static readonly Brush AppBrush = new SolidColorBrush(Color.FromRgb(246, 248, 251));
@@ -152,7 +157,7 @@ internal sealed class MainWindow : Window
         pollTimer.Interval = TimeSpan.FromSeconds(4);
         pollTimer.Tick += delegate { SafeSilent(delegate { RefreshInstances(true); }); };
         watchdogTimer.Interval = TimeSpan.FromSeconds(10);
-        watchdogTimer.Tick += delegate { if (!client.IsBackendHealthy()) client.StartBackend(); };
+        watchdogTimer.Tick += delegate { CheckBackendWatchdog(); };
     }
 
     private UIElement BuildRoot()
@@ -232,15 +237,15 @@ internal sealed class MainWindow : Window
         Button start = PrimaryButton("启动", new SolidColorBrush(Color.FromRgb(22, 163, 74)));
         Button stop = OutlineButton("停止", new SolidColorBrush(Color.FromRgb(185, 28, 28)));
         Button restart = PrimaryButton("重启", new SolidColorBrush(Color.FromRgb(79, 70, 229)));
-        Button sync = PrimaryButton("同步配置", AccentBrush);
+        syncButton = PrimaryButton("同步配置", AccentBrush);
         start.Click += delegate { Safe(delegate { RuntimeAction("start"); }); };
         stop.Click += delegate { Safe(delegate { RuntimeAction("stop"); }); };
         restart.Click += delegate { Safe(delegate { RuntimeAction("restart"); }); };
-        sync.Click += delegate { Safe(SyncCurrent); };
+        syncButton.Click += async delegate { await SyncCurrentAsync(); };
         actions.Children.Add(start);
         actions.Children.Add(stop);
         actions.Children.Add(restart);
-        actions.Children.Add(sync);
+        actions.Children.Add(syncButton);
         return header;
     }
 
@@ -299,7 +304,7 @@ internal sealed class MainWindow : Window
         autoStartButton.Click += delegate { Safe(ToggleAutoStart); };
         panel.Children.Add(autoStartButton);
         frpAccountButton = OutlineButton("连接 88FRP", AccentBrush);
-        frpAccountButton.Click += delegate { Safe(ManageFrpAccount); };
+        frpAccountButton.Click += async delegate { await ManageFrpAccountAsync(); };
         panel.Children.Add(frpAccountButton);
         frpAccountStatus.Foreground = MutedBrush;
         frpAccountStatus.VerticalAlignment = VerticalAlignment.Center;
@@ -647,17 +652,22 @@ internal sealed class MainWindow : Window
         RefreshAll();
     }
 
-    private void SyncCurrent()
+    private async Task SyncCurrentAsync()
     {
         if (string.IsNullOrEmpty(currentInstanceId)) return;
+        string instanceId = currentInstanceId;
         Dictionary<string, object> info = new Dictionary<string, object>();
         info["secretKey"] = secretBox.Text.Trim();
         info["autoSyncEnabled"] = autoSyncBox.IsChecked == true;
-        client.PutDict("/api/instances/" + currentInstanceId, info);
         Dictionary<string, object> payload = new Dictionary<string, object>();
         payload["restartOnChange"] = true;
-        client.PostDict("/api/instances/" + currentInstanceId + "/sync", payload);
-        RefreshAll();
+        bool completed = await RunLongOperationAsync("同步中", delegate
+        {
+            client.PutDict("/api/instances/" + instanceId, info);
+            client.PostDict("/api/instances/" + instanceId + "/sync", payload, 90000);
+        });
+        if (!completed) return;
+        Safe(RefreshAll);
         MessageBox.Show("同步完成。已保存的隧道选择会保留，新隧道默认关闭。", Program.AppName);
     }
 
@@ -686,34 +696,108 @@ internal sealed class MainWindow : Window
         frpAccountStatus.Text = connected ? (username + (autoLogin ? " · 自动登录" : " · 需手动登录")) : "未连接";
     }
 
-    private void ManageFrpAccount()
+    private async Task ManageFrpAccountAsync()
     {
-        Dictionary<string, object> account = client.GetDict("/api/88frp/account");
-        if (NativeClient.GetBool(account, "connected"))
+        try
         {
-            MessageBoxResult result = MessageBox.Show(
-                "断开后会删除本机保存的 88FRP 登录令牌和密码，已缓存的隧道名称会保留。\n\n是否断开？",
-                Program.AppName,
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question
-            );
-            if (result != MessageBoxResult.Yes) return;
-            client.DeleteDict("/api/88frp/account");
-            RefreshFrpAccountStatus();
-            MessageBox.Show("88FRP 账号已断开。", Program.AppName);
-            return;
-        }
+            Dictionary<string, object> account = client.GetDict("/api/88frp/account");
+            if (NativeClient.GetBool(account, "connected"))
+            {
+                MessageBoxResult result = MessageBox.Show(
+                    "断开后会删除本机保存的 88FRP 登录令牌和密码，已缓存的隧道名称会保留。\n\n是否断开？",
+                    Program.AppName,
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question
+                );
+                if (result != MessageBoxResult.Yes) return;
+                client.DeleteDict("/api/88frp/account");
+                RefreshFrpAccountStatus();
+                MessageBox.Show("88FRP 账号已断开。", Program.AppName);
+                return;
+            }
 
-        FrpAccountWindow dialog = new FrpAccountWindow { Owner = this };
-        if (dialog.ShowDialog() != true) return;
-        Dictionary<string, object> payload = new Dictionary<string, object>();
-        payload["username"] = dialog.Username;
-        payload["password"] = dialog.Password;
-        payload["autoLoginEnabled"] = dialog.AutoLoginEnabled;
-        client.PostDict("/api/88frp/account/connect", payload);
-        RefreshFrpAccountStatus();
-        LoadTunnels();
-        MessageBox.Show("88FRP 已连接。同步配置发生变化时会自动刷新隧道名称。", Program.AppName);
+            FrpAccountWindow dialog = new FrpAccountWindow { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+            Dictionary<string, object> payload = new Dictionary<string, object>();
+            payload["username"] = dialog.Username;
+            payload["password"] = dialog.Password;
+            payload["autoLoginEnabled"] = dialog.AutoLoginEnabled;
+            bool completed = await RunLongOperationAsync("登录中", delegate
+            {
+                client.PostDict("/api/88frp/account/connect", payload, 90000);
+            });
+            if (!completed) return;
+            RefreshFrpAccountStatus();
+            LoadTunnels();
+            MessageBox.Show("88FRP 已连接。同步配置发生变化时会自动刷新隧道名称。", Program.AppName);
+        }
+        catch (Exception ex)
+        {
+            backendValue.Text = "错误";
+            MessageBox.Show(FriendlyError(ex), Program.AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private async Task<bool> RunLongOperationAsync(string statusText, Action operation)
+    {
+        if (longOperationRunning) return false;
+        longOperationRunning = true;
+        if (syncButton != null) syncButton.IsEnabled = false;
+        if (frpAccountButton != null) frpAccountButton.IsEnabled = false;
+        backendValue.Text = statusText;
+        try
+        {
+            await Task.Run(operation);
+            backendValue.Text = "正常";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            backendValue.Text = "错误";
+            MessageBox.Show(FriendlyError(ex), Program.AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+        finally
+        {
+            longOperationRunning = false;
+            if (syncButton != null) syncButton.IsEnabled = true;
+            if (frpAccountButton != null) frpAccountButton.IsEnabled = true;
+        }
+    }
+
+    private void CheckBackendWatchdog()
+    {
+        if (Interlocked.CompareExchange(ref watchdogCheckRunning, 1, 0) != 0) return;
+        ThreadPool.QueueUserWorkItem(delegate
+        {
+            bool healthy = client.IsBackendHealthy(2000);
+            if (healthy)
+            {
+                Interlocked.Exchange(ref watchdogFailureCount, 0);
+            }
+            else if (Interlocked.Increment(ref watchdogFailureCount) >= 3)
+            {
+                try
+                {
+                    client.RestartBackend();
+                    healthy = client.IsBackendHealthy(2000);
+                }
+                catch
+                {
+                    healthy = false;
+                }
+                Interlocked.Exchange(ref watchdogFailureCount, 0);
+            }
+
+            Interlocked.Exchange(ref watchdogCheckRunning, 0);
+            Dispatcher.BeginInvoke(new Action(delegate
+            {
+                if (!longOperationRunning)
+                {
+                    backendValue.Text = healthy ? "正常" : "检查中";
+                }
+            }));
+        });
     }
 
     private void Safe(Action action)
@@ -905,6 +989,7 @@ internal sealed class NativeClient
 {
     internal static readonly int ShowWindowMessage = RegisterWindowMessage("88FRP_SHOW_NATIVE_WINDOW");
     private readonly JavaScriptSerializer serializer = new JavaScriptSerializer();
+    private readonly object backendLifecycleLock = new object();
     private Process backendProcess;
 
     [DllImport("user32.dll", CharSet = CharSet.Auto)] private static extern int RegisterWindowMessage(string lpString);
@@ -948,37 +1033,45 @@ internal sealed class NativeClient
 
     public void StartBackend()
     {
-        if (IsBackendHealthy()) return;
-        string backendPath = AppFile("88frp-web.exe");
-        if (!File.Exists(backendPath))
+        lock (backendLifecycleLock)
         {
-            MessageBox.Show("没有找到后台核心文件：" + backendPath, Program.AppName, MessageBoxButton.OK, MessageBoxImage.Error);
-            Environment.Exit(1);
+            if (IsBackendHealthy()) return;
+            if (backendProcess != null && !backendProcess.HasExited) return;
+            string backendPath = AppFile("88frp-web.exe");
+            if (!File.Exists(backendPath))
+            {
+                MessageBox.Show("没有找到后台核心文件：" + backendPath, Program.AppName, MessageBoxButton.OK, MessageBoxImage.Error);
+                Environment.Exit(1);
+            }
+            ProcessStartInfo info = new ProcessStartInfo();
+            info.FileName = backendPath;
+            info.WorkingDirectory = Path.GetDirectoryName(backendPath);
+            info.UseShellExecute = false;
+            info.CreateNoWindow = true;
+            info.WindowStyle = ProcessWindowStyle.Hidden;
+            info.EnvironmentVariables["HOST"] = Program.Host;
+            info.EnvironmentVariables["PORT"] = Program.Port.ToString();
+            info.EnvironmentVariables["APP_BASE_DIR"] = Program.AppDataDir;
+            info.EnvironmentVariables["INSTANCE_AUTO_START_ON_BOOT"] = "1";
+            backendProcess = Process.Start(info);
         }
-        ProcessStartInfo info = new ProcessStartInfo();
-        info.FileName = backendPath;
-        info.WorkingDirectory = Path.GetDirectoryName(backendPath);
-        info.UseShellExecute = false;
-        info.CreateNoWindow = true;
-        info.WindowStyle = ProcessWindowStyle.Hidden;
-        info.EnvironmentVariables["HOST"] = Program.Host;
-        info.EnvironmentVariables["PORT"] = Program.Port.ToString();
-        info.EnvironmentVariables["APP_BASE_DIR"] = Program.AppDataDir;
-        info.EnvironmentVariables["INSTANCE_AUTO_START_ON_BOOT"] = "1";
-        backendProcess = Process.Start(info);
     }
 
     public void StopBackend()
     {
-        try
+        lock (backendLifecycleLock)
         {
-            if (backendProcess != null && !backendProcess.HasExited)
+            try
             {
-                backendProcess.Kill();
-                backendProcess.WaitForExit(2500);
+                if (backendProcess != null && !backendProcess.HasExited)
+                {
+                    backendProcess.Kill();
+                    backendProcess.WaitForExit(2500);
+                }
             }
+            catch { }
+            backendProcess = null;
         }
-        catch { }
     }
 
     public void RestartBackend()
@@ -989,12 +1082,12 @@ internal sealed class NativeClient
         WaitForBackend();
     }
 
-    public bool IsBackendHealthy()
+    public bool IsBackendHealthy(int timeoutMs = 900)
     {
         try
         {
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(Program.BaseUrl + "/api/health");
-            request.Timeout = 900;
+            request.Timeout = timeoutMs;
             using (HttpWebResponse response = (HttpWebResponse)request.GetResponse()) return response.StatusCode == HttpStatusCode.OK;
         }
         catch { return false; }
@@ -1012,15 +1105,17 @@ internal sealed class NativeClient
 
     public object[] GetArray(string path) { return AsArray(Request("GET", path, null)); }
     public Dictionary<string, object> GetDict(string path) { return AsDict(Request("GET", path, null)); }
-    public Dictionary<string, object> PostDict(string path, Dictionary<string, object> payload) { return AsDict(Request("POST", path, payload)); }
+    public Dictionary<string, object> PostDict(string path, Dictionary<string, object> payload) { return AsDict(Request("POST", path, payload, 12000)); }
+    public Dictionary<string, object> PostDict(string path, Dictionary<string, object> payload, int timeoutMs) { return AsDict(Request("POST", path, payload, timeoutMs)); }
     public Dictionary<string, object> PutDict(string path, Dictionary<string, object> payload) { return AsDict(Request("PUT", path, payload)); }
     public Dictionary<string, object> DeleteDict(string path) { return AsDict(Request("DELETE", path, null)); }
 
-    private object Request(string method, string path, Dictionary<string, object> payload)
+    private object Request(string method, string path, Dictionary<string, object> payload, int timeoutMs = 12000)
     {
         HttpWebRequest request = (HttpWebRequest)WebRequest.Create(Program.BaseUrl + path);
         request.Method = method;
-        request.Timeout = 12000;
+        request.Timeout = timeoutMs;
+        request.ReadWriteTimeout = timeoutMs;
         request.ContentType = "application/json";
         if (payload != null)
         {
@@ -1038,6 +1133,10 @@ internal sealed class NativeClient
         }
         catch (WebException ex)
         {
+            if (ex.Status == WebExceptionStatus.Timeout)
+            {
+                throw new Exception("操作超时，后台可能仍在处理。请稍后刷新状态，不要重复点击。");
+            }
             string body = "";
             if (ex.Response != null)
             {

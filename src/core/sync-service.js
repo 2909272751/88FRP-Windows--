@@ -29,6 +29,7 @@ class SyncService {
     this.logger = logger;
     this.tunnelService = tunnelService;
     this.frpAccountService = frpAccountService;
+    this.syncTasks = new Map();
   }
 
   async saveConfig(instanceId, configText) {
@@ -58,7 +59,7 @@ class SyncService {
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        "User-Agent": "88frp-node/2.0.0",
+        "User-Agent": "88frp-node/2.0.1",
       },
       signal: AbortSignal.timeout(settings.apiTimeout),
     });
@@ -80,6 +81,22 @@ class SyncService {
   }
 
   async syncInstance(instanceId, options = {}) {
+    if (this.syncTasks.has(instanceId)) {
+      return this.syncTasks.get(instanceId);
+    }
+
+    const task = this.performSync(instanceId, options);
+    this.syncTasks.set(instanceId, task);
+    try {
+      return await task;
+    } finally {
+      if (this.syncTasks.get(instanceId) === task) {
+        this.syncTasks.delete(instanceId);
+      }
+    }
+  }
+
+  async performSync(instanceId, options = {}) {
     const instance = await this.store.getInstance(instanceId);
     if (!instance) {
       throw new Error("实例不存在。");
@@ -143,6 +160,7 @@ class SyncService {
   startAutoSyncScheduler() {
     let running = false;
     let timer = null;
+    const failures = new Map();
 
     const tick = async () => {
       if (running) {
@@ -153,12 +171,23 @@ class SyncService {
       try {
         const instances = await this.store.listInstances();
         for (const instance of instances.filter((item) => item.autoSyncEnabled)) {
+          const failure = failures.get(instance.id);
+          if (failure && failure.retryAt > Date.now()) {
+            continue;
+          }
           try {
             const result = await this.syncInstance(instance.id, { restartOnChange: true });
+            failures.delete(instance.id);
             if (result.changed) {
               await this.logger.info(`实例 ${instance.name} 自动同步完成，动作: ${result.runtimeAction}`);
             }
           } catch (error) {
+            const failureCount = (failure ? failure.count : 0) + 1;
+            const retryDelay = Math.min(60_000 * (2 ** (failureCount - 1)), 15 * 60_000);
+            failures.set(instance.id, {
+              count: failureCount,
+              retryAt: Date.now() + retryDelay,
+            });
             await this.logger.error(`实例 ${instance.name} 自动同步失败: ${error.message}`);
           }
         }
