@@ -1,6 +1,6 @@
 {
   "name": "88frp-node",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "private": true,
   "description": "88FRP standalone CLI, agent, and Docker web manager",
   "type": "commonjs",

@@ -71,6 +71,28 @@ test("实例列表接口在空数据目录下返回空数组", async () => {
   });
 });
 
+test("实例可以通过 API 删除且不会残留在列表中", async () => {
+  await withServer(async (baseUrl) => {
+    const createResponse = await fetch(`${baseUrl}/api/instances`, {
+      method: "POST",
+      headers: { "content-type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ name: "待删除实例" }),
+    });
+    const created = await createResponse.json();
+
+    const deleteResponse = await fetch(`${baseUrl}/api/instances/${created.data.id}`, {
+      method: "DELETE",
+    });
+    const deleted = await deleteResponse.json();
+    const listResponse = await fetch(`${baseUrl}/api/instances`);
+    const listed = await listResponse.json();
+
+    assert.equal(deleteResponse.status, 200);
+    assert.equal(deleted.success, true);
+    assert.deepEqual(listed.data, []);
+  });
+});
+
 test("创建实例时默认使用项目内置远程配置地址", async () => {
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/api/instances`, {
@@ -132,8 +154,16 @@ test("Web 页面资源包含隧道备注名称和移动端适配入口", async (
   assert.match(script, /tunnel\.displayName \|\| tunnel\.name/);
   assert.match(script, /labelRefresh\?\.reason === "updated"/);
   assert.match(script, /connectFrpAccount/);
+  assert.match(script, /tunnelLoadState/);
+  assert.match(script, /retry-tunnels/);
+  assert.match(script, /instance-menu-button/);
+  assert.match(script, /deleteInstance\(instance\)/);
   assert.match(api, /\/api\/88frp\/account\/connect/);
   assert.match(styles, /\.sidebar\.is-expanded/);
+  assert.match(styles, /\.instance-menu\.is-open/);
+  assert.match(styles, /\.content-area\s*\{[^}]*display:\s*flex/s);
+  assert.match(styles, /\.view-panel\s*\{[^}]*flex:\s*1 1 auto/s);
+  assert.doesNotMatch(styles, /\.view-panel\s*\{[^}]*position:\s*absolute/s);
   assert.match(styles, /@media \(max-width: 720px\)/);
   assert.match(styles, /safe-area-inset-bottom/);
 });

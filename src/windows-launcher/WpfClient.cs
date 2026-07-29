@@ -24,8 +24,8 @@ using SD = System.Drawing;
 [assembly: AssemblyProduct("88FRP Windows")]
 [assembly: AssemblyDescription("88FRP Windows 隧道控制台")]
 [assembly: AssemblyCompany("88FRP Windows")]
-[assembly: AssemblyVersion("2.0.1.0")]
-[assembly: AssemblyFileVersion("2.0.1.0")]
+[assembly: AssemblyVersion("2.0.2.0")]
+[assembly: AssemblyFileVersion("2.0.2.0")]
 
 internal static class Program
 {

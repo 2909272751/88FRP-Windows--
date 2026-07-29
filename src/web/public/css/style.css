@@ -222,19 +222,16 @@ textarea:focus-visible {
 }
 
 .instance-item {
+  position: relative;
   display: flex;
   width: 100%;
   min-height: 64px;
   align-items: center;
-  justify-content: space-between;
   margin-bottom: 5px;
-  padding: 11px 12px;
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: var(--text);
-  cursor: pointer;
-  text-align: left;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
@@ -245,6 +242,20 @@ textarea:focus-visible {
 .instance-item.active {
   background: var(--primary-soft);
   color: var(--primary);
+}
+
+.instance-select {
+  display: flex;
+  min-width: 0;
+  min-height: 64px;
+  flex: 1;
+  align-items: center;
+  padding: 11px 8px 11px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
 }
 
 .instance-info {
@@ -268,6 +279,76 @@ textarea:focus-visible {
   gap: 6px;
   color: var(--text-secondary);
   font-size: 12px;
+}
+
+.instance-actions {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  padding-right: 6px;
+}
+
+.instance-menu-button {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.instance-menu-button:hover,
+.instance-menu-button[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  color: var(--text);
+}
+
+.instance-menu {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% - 3px);
+  right: 5px;
+  display: none;
+  width: 148px;
+  padding: 5px;
+  border: 1px solid var(--outline);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.instance-menu.is-open {
+  display: block;
+}
+
+.instance-menu.opens-up {
+  top: auto;
+  bottom: calc(100% - 3px);
+}
+
+.instance-menu-delete {
+  display: flex;
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--danger);
+  cursor: pointer;
+  font-weight: 650;
+  text-align: left;
+}
+
+.instance-menu-delete:hover {
+  background: var(--danger-soft);
 }
 
 .status-dot,
@@ -911,16 +992,18 @@ textarea:disabled {
 
 .content-area {
   position: relative;
+  display: flex;
   min-height: 0;
   flex: 1;
   overflow: hidden;
 }
 
 .view-panel {
-  position: absolute;
-  inset: 0;
+  position: relative;
   display: none;
+  width: 100%;
   min-height: 0;
+  flex: 1 1 auto;
   background: color-mix(in srgb, var(--surface) 90%, transparent);
 }
 
@@ -1050,6 +1133,61 @@ textarea:disabled {
   justify-content: center;
   color: var(--text-secondary);
   text-align: center;
+}
+
+.panel-status {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.panel-status-card {
+  display: flex;
+  width: min(100%, 420px);
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px;
+  border: 1px solid var(--outline);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.panel-status-card strong {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.panel-status-card span {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.panel-status-icon {
+  color: var(--primary);
+  font-size: 24px;
+}
+
+.panel-status-error .panel-status-icon {
+  color: var(--danger);
+}
+
+.panel-status-retry {
+  margin-top: 6px;
+}
+
+.is-spinning {
+  animation: icon-spin 0.85s linear infinite;
+}
+
+@keyframes icon-spin {
+  to { transform: rotate(360deg); }
 }
 
 .panel-actions {

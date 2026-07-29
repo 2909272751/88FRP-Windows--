@@ -8,6 +8,10 @@ document.addEventListener("DOMContentLoaded", () => {
     originalAutoSyncEnabled: false,
     tunnels: [],
     tunnelSelection: {},
+    tunnelLoadState: "idle",
+    tunnelLoadError: "",
+    tunnelRequestId: 0,
+    openInstanceMenuId: null,
     instancesExpanded: false,
     syncSettingsExpanded: false,
     pollingTimer: null,
@@ -128,9 +132,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
+      closeInstanceMenu();
       setInstancesExpanded(false);
       closeCreateModal();
       closeFrpAccountModal();
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest(".instance-actions")) closeInstanceMenu();
     });
   }
 
@@ -230,26 +239,59 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     els.instanceList.innerHTML = "";
-    for (const instance of state.instances) {
-      const item = document.createElement("button");
-      item.type = "button";
-      item.className = `instance-item${instance.id === state.currentInstanceId ? " active" : ""}`;
-      item.innerHTML = `
-        <span class="instance-info">
-          <span class="instance-name">${escapeHtml(instance.name)}</span>
-          <span class="instance-status">
-            <span class="status-dot ${getStatusClass(instance.runtime?.status)}"></span>
-            ${translateStatus(instance.runtime?.status)}
+    state.instances.forEach((instance, index) => {
+      const row = document.createElement("div");
+      row.className = `instance-item${instance.id === state.currentInstanceId ? " active" : ""}`;
+      const menuOpen = state.openInstanceMenuId === instance.id;
+      const menuOpensUp = state.instances.length > 4 && index >= state.instances.length - 2;
+      row.innerHTML = `
+        <button class="instance-select" type="button" aria-label="打开实例 ${escapeHtml(instance.name)}">
+          <span class="instance-info">
+            <span class="instance-name">${escapeHtml(instance.name)}</span>
+            <span class="instance-status">
+              <span class="status-dot ${getStatusClass(instance.runtime?.status)}"></span>
+              ${translateStatus(instance.runtime?.status)}
+            </span>
+          </span>
+        </button>
+        <span class="instance-actions">
+          <button class="instance-menu-button" type="button" aria-label="管理实例 ${escapeHtml(instance.name)}" aria-haspopup="menu" aria-expanded="${menuOpen}" title="更多操作">
+            <i class="icon-ellipsis-vertical" aria-hidden="true"></i>
+          </button>
+          <span class="instance-menu${menuOpen ? " is-open" : ""}${menuOpensUp ? " opens-up" : ""}" role="menu">
+            <button class="instance-menu-delete" type="button" role="menuitem">
+              <i class="icon-trash-2" aria-hidden="true"></i>
+              <span>删除实例</span>
+            </button>
           </span>
         </span>
-        <i class="icon-chevron-right" aria-hidden="true"></i>
       `;
-      item.addEventListener("click", () => selectInstance(instance.id));
-      els.instanceList.appendChild(item);
-    }
+      row.querySelector(".instance-select").addEventListener("click", () => selectInstance(instance.id));
+      row.querySelector(".instance-menu-button").addEventListener("click", (event) => {
+        event.stopPropagation();
+        toggleInstanceMenu(instance.id);
+      });
+      row.querySelector(".instance-menu-delete").addEventListener("click", (event) => {
+        event.stopPropagation();
+        deleteInstance(instance);
+      });
+      els.instanceList.appendChild(row);
+    });
+  }
+
+  function toggleInstanceMenu(instanceId) {
+    state.openInstanceMenuId = state.openInstanceMenuId === instanceId ? null : instanceId;
+    renderInstanceList();
+  }
+
+  function closeInstanceMenu() {
+    if (!state.openInstanceMenuId) return;
+    state.openInstanceMenuId = null;
+    renderInstanceList();
   }
 
   async function selectInstance(instanceId) {
+    state.openInstanceMenuId = null;
     state.currentInstanceId = instanceId;
     state.tunnels = [];
     state.tunnelSelection = {};
@@ -337,12 +379,11 @@ document.addEventListener("DOMContentLoaded", () => {
       els.btnSync,
       els.btnRefreshLog,
       els.btnReloadTunnels,
-      els.btnSelectNoTunnels,
-      els.btnSaveTunnels,
       els.btnConnectFrpAccount,
     ].forEach((button) => {
       button.disabled = disabled;
     });
+    updateTunnelSelectionActions();
 
     renderSyncSummary();
     updateDirtyState();
@@ -363,9 +404,16 @@ document.addEventListener("DOMContentLoaded", () => {
       tab.classList.toggle("active", active);
       tab.setAttribute("aria-selected", String(active));
     });
-    document.getElementById("editorView").classList.toggle("active", state.activeView === "editor");
-    document.getElementById("tunnelsView").classList.toggle("active", state.activeView === "tunnels");
-    document.getElementById("logView").classList.toggle("active", state.activeView === "log");
+    const views = {
+      editor: document.getElementById("editorView"),
+      tunnels: document.getElementById("tunnelsView"),
+      log: document.getElementById("logView"),
+    };
+    Object.entries(views).forEach(([name, panel]) => {
+      const active = name === state.activeView;
+      panel.classList.toggle("active", active);
+      panel.setAttribute("aria-hidden", String(!active));
+    });
   }
 
   async function loadLogs() {
@@ -378,17 +426,72 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function loadTunnels() {
     const current = getCurrentInstance();
-    if (!current) return;
-    const res = await API.getTunnels(current.id);
-    state.tunnels = res.data.tunnels || [];
-    state.tunnelSelection = {};
-    for (const tunnel of state.tunnels) {
-      state.tunnelSelection[tunnel.name] = Boolean(tunnel.enabled);
+    const requestId = ++state.tunnelRequestId;
+    if (!current) {
+      state.tunnelLoadState = "idle";
+      state.tunnelLoadError = "";
+      renderTunnels();
+      return;
     }
+
+    state.tunnelLoadState = "loading";
+    state.tunnelLoadError = "";
     renderTunnels();
+
+    try {
+      const res = await API.getTunnels(current.id);
+      if (requestId !== state.tunnelRequestId) return;
+      state.tunnels = res.data.tunnels || [];
+      state.tunnelSelection = {};
+      for (const tunnel of state.tunnels) {
+        state.tunnelSelection[tunnel.name] = Boolean(tunnel.enabled);
+      }
+      state.tunnelLoadState = "ready";
+      renderTunnels();
+    } catch (error) {
+      if (requestId !== state.tunnelRequestId) return;
+      state.tunnelLoadState = "error";
+      state.tunnelLoadError = error.message || "隧道加载失败";
+      renderTunnels();
+      throw error;
+    }
   }
 
   function renderTunnels() {
+    updateTunnelSelectionActions();
+    if (state.tunnelLoadState === "loading") {
+      els.tunnelsList.innerHTML = `
+        <div class="panel-status" role="status">
+          <div class="panel-status-card">
+            <i class="icon-loader-circle panel-status-icon is-spinning" aria-hidden="true"></i>
+            <strong>正在加载隧道</strong>
+            <span>正在读取当前实例的隧道和保存的选择。</span>
+          </div>
+        </div>
+      `;
+      els.selectionSummary.textContent = "正在加载隧道";
+      return;
+    }
+
+    if (state.tunnelLoadState === "error") {
+      els.tunnelsList.innerHTML = `
+        <div class="panel-status panel-status-error" role="alert">
+          <div class="panel-status-card">
+            <i class="icon-triangle-alert panel-status-icon" aria-hidden="true"></i>
+            <strong>隧道没有加载成功</strong>
+            <span>${escapeHtml(state.tunnelLoadError)}</span>
+            <button class="tonal-button panel-status-retry" type="button" data-action="retry-tunnels">
+              <i class="icon-refresh-cw" aria-hidden="true"></i><span>重新加载</span>
+            </button>
+          </div>
+        </div>
+      `;
+      els.selectionSummary.textContent = "隧道加载失败";
+      const retryButton = els.tunnelsList.querySelector('[data-action="retry-tunnels"]');
+      retryButton.addEventListener("click", () => withBusy(loadTunnels));
+      return;
+    }
+
     if (!state.tunnels.length) {
       els.tunnelsList.innerHTML = `
         <div class="tunnels-empty">
@@ -434,6 +537,12 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderSelectionSummary() {
     const enabled = Object.values(state.tunnelSelection).filter(Boolean).length;
     els.selectionSummary.textContent = `已开启 ${enabled} / ${state.tunnels.length} 条隧道`;
+  }
+
+  function updateTunnelSelectionActions() {
+    const disabled = state.busy || state.tunnelLoadState !== "ready";
+    els.btnSelectNoTunnels.disabled = disabled;
+    els.btnSaveTunnels.disabled = disabled;
   }
 
   function clearTunnelSelection() {
@@ -517,15 +626,31 @@ document.addEventListener("DOMContentLoaded", () => {
   async function deleteCurrentInstance() {
     const current = getCurrentInstance();
     if (!current) return;
-    if (!window.confirm(`确定删除实例「${current.name}」吗？`)) return;
+    await deleteInstance(current);
+  }
+
+  async function deleteInstance(instance) {
+    if (!instance || state.busy) return;
+    const isRunning = instance.runtime?.status === "running";
+    const runningNotice = isRunning ? "\n\n该实例正在运行，删除时会先停止后台隧道。" : "";
+    if (!window.confirm(`确定删除实例「${instance.name}」吗？${runningNotice}\n\n此操作无法撤销。`)) {
+      closeInstanceMenu();
+      return;
+    }
+
+    const deletedIndex = state.instances.findIndex((item) => item.id === instance.id);
+    const deletingCurrent = state.currentInstanceId === instance.id;
+    const remaining = state.instances.filter((item) => item.id !== instance.id);
+    const fallback = remaining[Math.min(deletedIndex, remaining.length - 1)] || null;
+    state.openInstanceMenuId = null;
 
     await withBusy(async () => {
-      await API.deleteInstance(current.id);
-      state.currentInstanceId = null;
+      await API.deleteInstance(instance.id);
+      if (deletingCurrent) state.currentInstanceId = fallback?.id || null;
       persistCurrentInstance();
-      showToast("实例已删除");
       await loadInstances();
       if (state.currentInstanceId) await refreshCurrentInstance();
+      showToast(`实例「${instance.name}」已删除`);
     });
   }
 
