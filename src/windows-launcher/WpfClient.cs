@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -24,8 +25,8 @@ using SD = System.Drawing;
 [assembly: AssemblyProduct("88FRP Windows")]
 [assembly: AssemblyDescription("88FRP Windows 隧道控制台")]
 [assembly: AssemblyCompany("88FRP Windows")]
-[assembly: AssemblyVersion("2.0.2.0")]
-[assembly: AssemblyFileVersion("2.0.2.0")]
+[assembly: AssemblyVersion("2.0.3.0")]
+[assembly: AssemblyFileVersion("2.0.3.0")]
 
 internal static class Program
 {
@@ -117,6 +118,7 @@ internal sealed class MainWindow : Window
     private static readonly Brush MutedBrush = new SolidColorBrush(Color.FromRgb(100, 116, 139));
     private static readonly Brush AccentBrush = new SolidColorBrush(Color.FromRgb(37, 99, 235));
     private static readonly Brush AccentGreenBrush = new SolidColorBrush(Color.FromRgb(20, 184, 166));
+    private static readonly Brush DangerBrush = new SolidColorBrush(Color.FromRgb(220, 38, 38));
     private static readonly Brush UiBorderBrush = new SolidColorBrush(Color.FromRgb(226, 232, 240));
 
     public MainWindow(bool backgroundStart)
@@ -197,6 +199,8 @@ internal sealed class MainWindow : Window
         instanceList.BorderThickness = new Thickness(0);
         instanceList.Foreground = Brushes.White;
         instanceList.FontSize = 15;
+        instanceList.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+        instanceList.ItemTemplate = BuildInstanceItemTemplate();
         instanceList.SelectionChanged += delegate { Safe(SelectCurrentInstance); };
         sideDock.Children.Add(instanceList);
 
@@ -435,6 +439,67 @@ internal sealed class MainWindow : Window
         return button;
     }
 
+    private DataTemplate BuildInstanceItemTemplate()
+    {
+        DataTemplate template = new DataTemplate(typeof(InstanceListItem));
+        FrameworkElementFactory row = new FrameworkElementFactory(typeof(DockPanel));
+        row.SetValue(FrameworkElement.MarginProperty, new Thickness(2, 0, 2, 0));
+
+        FrameworkElementFactory menuButton = new FrameworkElementFactory(typeof(Button));
+        menuButton.SetValue(DockPanel.DockProperty, Dock.Right);
+        menuButton.SetValue(Button.ContentProperty, "⋮");
+        menuButton.SetValue(FrameworkElement.WidthProperty, 36.0);
+        menuButton.SetValue(FrameworkElement.HeightProperty, 30.0);
+        menuButton.SetValue(Control.PaddingProperty, new Thickness(0));
+        menuButton.SetValue(Control.BackgroundProperty, Brushes.Transparent);
+        menuButton.SetValue(Control.ForegroundProperty, Brushes.White);
+        menuButton.SetValue(Control.BorderThicknessProperty, new Thickness(0));
+        menuButton.SetValue(FrameworkElement.CursorProperty, Cursors.Hand);
+        menuButton.SetValue(FrameworkElement.ToolTipProperty, "更多操作");
+        menuButton.SetBinding(FrameworkElement.TagProperty, new Binding("Id"));
+        menuButton.AddHandler(Button.ClickEvent, new RoutedEventHandler(InstanceMenuButtonClick));
+        row.AppendChild(menuButton);
+
+        FrameworkElementFactory label = new FrameworkElementFactory(typeof(TextBlock));
+        label.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
+        label.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
+        label.SetValue(FrameworkElement.MarginProperty, new Thickness(8, 0, 4, 0));
+        label.SetBinding(TextBlock.TextProperty, new Binding("Text"));
+        row.AppendChild(label);
+
+        template.VisualTree = row;
+        return template;
+    }
+
+    private void InstanceMenuButtonClick(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        Button button = sender as Button;
+        if (button == null) return;
+        string instanceId = button.Tag as string;
+        InstanceListItem item = FindInstanceItem(instanceId);
+        if (item == null) return;
+        instanceList.SelectedItem = item;
+
+        ContextMenu menu = new ContextMenu();
+        MenuItem delete = new MenuItem { Header = "删除实例", Foreground = DangerBrush };
+        delete.Click += delegate { Safe(delegate { DeleteInstance(item); }); };
+        menu.Items.Add(delete);
+        menu.PlacementTarget = button;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.IsOpen = true;
+    }
+
+    private InstanceListItem FindInstanceItem(string instanceId)
+    {
+        foreach (object entry in instanceList.Items)
+        {
+            InstanceListItem item = entry as InstanceListItem;
+            if (item != null && item.Id == instanceId) return item;
+        }
+        return null;
+    }
+
     private void BuildTray()
     {
         WF.ContextMenuStrip menu = new WF.ContextMenuStrip();
@@ -539,7 +604,7 @@ internal sealed class MainWindow : Window
             string id = NativeClient.GetString(item, "id");
             string name = NativeClient.GetString(item, "name");
             string status = NativeClient.GetNestedString(item, "runtime", "status");
-            InstanceListItem listItem = new InstanceListItem { Id = id, Text = name + "  ·  " + TranslateStatus(status) };
+            InstanceListItem listItem = new InstanceListItem { Id = id, Name = name, Status = status, Text = name + "  ·  " + TranslateStatus(status) };
             instanceList.Items.Add(listItem);
             if (id == selectedId) instanceList.SelectedItem = listItem;
         }
@@ -613,6 +678,47 @@ internal sealed class MainWindow : Window
         Dictionary<string, object> created = client.PostDict("/api/instances", payload);
         currentInstanceId = NativeClient.GetString(created, "id");
         RefreshInstances(true);
+    }
+
+    private void DeleteInstance(InstanceListItem item)
+    {
+        if (item == null) return;
+        string runningNotice = item.Status == "running" ? "\n\n该实例正在运行，删除时会先停止后台隧道。" : "";
+        MessageBoxResult result = MessageBox.Show(
+            "确定删除实例「" + item.Name + "」吗？" + runningNotice + "\n\n此操作无法撤销。",
+            "删除实例",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning
+        );
+        if (result != MessageBoxResult.Yes) return;
+
+        int index = instanceList.Items.IndexOf(item);
+        string fallbackId = "";
+        if (instanceList.Items.Count > 1)
+        {
+            int fallbackIndex = index < instanceList.Items.Count - 1 ? index + 1 : index - 1;
+            InstanceListItem fallback = instanceList.Items[fallbackIndex] as InstanceListItem;
+            if (fallback != null) fallbackId = fallback.Id;
+        }
+
+        client.DeleteDict("/api/instances/" + item.Id);
+        currentInstanceId = fallbackId;
+        RefreshInstances(true);
+        if (instanceList.Items.Count == 0) ClearCurrentDetails();
+        MessageBox.Show("实例「" + item.Name + "」已删除。", Program.AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void ClearCurrentDetails()
+    {
+        currentInstanceId = "";
+        statusValue.Text = "-";
+        pidValue.Text = "-";
+        secretBox.Text = "";
+        autoSyncBox.IsChecked = false;
+        configBox.Text = "";
+        tunnelPanel.Children.Clear();
+        tunnels.Clear();
+        logsBox.Text = "";
     }
 
     private void SaveConfig()
@@ -968,8 +1074,10 @@ internal sealed class FrpAccountWindow : Window
 
 internal sealed class InstanceListItem
 {
-    public string Id;
-    public string Text;
+    public string Id { get; set; }
+    public string Name { get; set; }
+    public string Status { get; set; }
+    public string Text { get; set; }
     public override string ToString() { return Text; }
 }
 

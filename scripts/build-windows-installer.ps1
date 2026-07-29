@@ -93,4 +93,4 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "Windows installer built:"
-Write-Host (Join-Path $ProjectRoot "dist\88FRP-Windows-Setup-2.0.2.exe")
+Write-Host (Join-Path $ProjectRoot "dist\88FRP-Windows-Setup-2.0.3.exe")
