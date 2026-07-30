@@ -47,7 +47,7 @@ class ConsoleAuthService {
     return { challengeId: id, nonce, salt: config.passwordSalt, iterations: Number(config.passwordIterations) || PASSWORD_ITERATIONS };
   }
 
-  async login({ challengeId, username, proof, remember }, remoteAddress) {
+  async login({ challengeId, username, proof, password, remember }, remoteAddress) {
     let state = this.failures.get(remoteAddress);
     if (!state || state.resetAt < Date.now()) state = { count: 0, resetAt: Date.now() + 60000 };
     if (state.count >= 5) throw new Error("登录尝试过多，请一分钟后再试。");
@@ -57,7 +57,12 @@ class ConsoleAuthService {
     const verifier = await this.credentialStore.unprotect(config.encryptedVerifier);
     const loginName = String(username || "").trim();
     const expected = crypto.createHmac("sha256", Buffer.from(verifier, "base64")).update(`${challenge.nonce}\n${loginName}`).digest("base64url");
-    if (!safeEqual(config.username, loginName) || !safeEqual(expected, proof)) { this.failures.set(remoteAddress, { count: state.count + 1, resetAt: state.resetAt }); throw new Error("用户名或密码不正确。"); }
+    const passwordVerifier = password
+      ? crypto.pbkdf2Sync(String(password), Buffer.from(config.passwordSalt, "base64"), Number(config.passwordIterations) || PASSWORD_ITERATIONS, 32, "sha256").toString("base64")
+      : "";
+    const validProof = proof && safeEqual(expected, proof);
+    const validPassword = password && safeEqual(verifier, passwordVerifier);
+    if (!safeEqual(config.username, loginName) || (!validProof && !validPassword)) { this.failures.set(remoteAddress, { count: state.count + 1, resetAt: state.resetAt }); throw new Error("用户名或密码不正确。"); }
     this.failures.delete(remoteAddress);
     const token = crypto.randomBytes(32).toString("base64url");
     const expiresAt = Date.now() + (remember ? REMEMBER_TTL_MS : SESSION_TTL_MS);

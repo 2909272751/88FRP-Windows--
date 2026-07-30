@@ -51,3 +51,23 @@ test("控制台认证使用一次性挑战、可撤销会话且不保存明文�
     await fs.rm(dataDir, { recursive: true, force: true });
   }
 });
+
+test("HTTP 客户端可用密码回退登录", async () => {
+  const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "88frp-console-auth-http-"));
+  try {
+    const store = new Store({ dataDir });
+    await store.initialize();
+    const service = new ConsoleAuthService({ store, credentialStore });
+    await service.configure({ username: "admin", password: "short" });
+    const challenge = await service.createChallenge();
+    const login = await service.login({
+      challengeId: challenge.challengeId,
+      username: "admin",
+      password: "short",
+      remember: false,
+    }, "127.0.0.1");
+    assert.equal(await service.verify(login.token), true);
+  } finally {
+    await fs.rm(dataDir, { recursive: true, force: true });
+  }
+});
