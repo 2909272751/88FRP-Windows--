@@ -7,6 +7,7 @@ $ErrorActionPreference = "Stop"
 
 $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $Source = Join-Path $ProjectRoot "src\windows-launcher\WpfClient.cs"
+$ConsoleSecuritySource = Join-Path $ProjectRoot "src\windows-launcher\ConsoleSecurityWindow.cs"
 $DistDir = Join-Path $ProjectRoot "dist"
 $DefaultPublishDir = Join-Path $DistDir "88FRP-Windows"
 $BackendExe = Join-Path $DistDir "88frp-web.exe"
@@ -63,7 +64,8 @@ New-Item -ItemType Directory -Force -Path $PublishDir | Out-Null
   /reference:$(Join-Path $WpfDir "PresentationCore.dll") `
   /reference:$(Join-Path $WpfDir "PresentationFramework.dll") `
   /reference:System.Xaml.dll `
-  $Source
+  $Source `
+  $ConsoleSecuritySource
 
 if ($LASTEXITCODE -ne 0) {
   throw "Native client compilation failed."

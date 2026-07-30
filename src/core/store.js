@@ -20,6 +20,40 @@ const DEFAULT_RUNTIME = {
   updatedAt: "",
 };
 
+const DEFAULT_ACCESS_CENTER = {
+  enabled: false,
+  name: "",
+  serverAddr: "",
+  serverPort: 0,
+  remotePort: 0,
+  localHost: "127.0.0.1",
+  localPort: 8802,
+  proxyName: "",
+  publicUrl: "",
+  encryptedFrpToken: "",
+  linkProfiles: {},
+  createdAt: "",
+  updatedAt: "",
+};
+
+const DEFAULT_ACCESS_CENTER_RUNTIME = {
+  status: "stopped",
+  pid: null,
+  lastStartedAt: "",
+  lastError: "",
+  updatedAt: "",
+};
+
+const DEFAULT_CONSOLE_AUTH = {
+  username: "",
+  passwordSalt: "",
+  passwordIterations: 210000,
+  encryptedVerifier: "",
+  sessions: [],
+  createdAt: "",
+  updatedAt: "",
+};
+
 function normalizeInstance(instance) {
   return {
     id: instance.id,
@@ -40,6 +74,10 @@ class Store {
     this.settingsFile = path.join(dataDir, "settings.json");
     this.appLogFile = path.join(dataDir, "app.log");
     this.frpAccountFile = path.join(dataDir, "88frp-account.json");
+    this.accessCenterFile = path.join(dataDir, "access-center.json");
+    this.accessCenterRuntimeFile = path.join(dataDir, "access-center-runtime.json");
+    this.consoleAuthFile = path.join(dataDir, "console-auth.json");
+    this.accessCenterDir = path.join(dataDir, "access-center");
     this.instancesDir = path.join(dataDir, "instances");
   }
 
@@ -49,6 +87,10 @@ class Store {
     await this.ensureJsonFile(this.settingsFile, DEFAULT_SETTINGS);
     await this.ensureTextFile(this.appLogFile, "");
     await this.ensureJsonFile(this.frpAccountFile, {});
+    await this.ensureJsonFile(this.accessCenterFile, DEFAULT_ACCESS_CENTER);
+    await this.ensureJsonFile(this.accessCenterRuntimeFile, DEFAULT_ACCESS_CENTER_RUNTIME);
+    await this.ensureJsonFile(this.consoleAuthFile, DEFAULT_CONSOLE_AUTH);
+    await fsp.mkdir(this.accessCenterDir, { recursive: true });
   }
 
   async ensureJsonFile(filePath, fallbackValue) {
@@ -198,6 +240,20 @@ class Store {
     return selection || {};
   }
 
+  async getTunnelGroupOverrides(instanceId) {
+    const groups = await this.readJson(this.getTunnelGroupOverridesPath(instanceId), {});
+    return groups && typeof groups === "object" && !Array.isArray(groups) ? groups : {};
+  }
+
+  async saveTunnelGroupOverrides(instanceId, groupOverrides) {
+    await this.ensureInstanceDirectory(instanceId);
+    const nextValue = groupOverrides && typeof groupOverrides === "object" && !Array.isArray(groupOverrides)
+      ? groupOverrides
+      : {};
+    await this.writeJson(this.getTunnelGroupOverridesPath(instanceId), nextValue);
+    return nextValue;
+  }
+
   async getTunnelLabels(instanceId) {
     return this.readJson(this.getTunnelLabelsPath(instanceId), {});
   }
@@ -219,6 +275,76 @@ class Store {
 
   async clearFrpAccount() {
     await this.writeJson(this.frpAccountFile, {});
+  }
+
+  async getAccessCenter() {
+    const data = await this.readJson(this.accessCenterFile, DEFAULT_ACCESS_CENTER);
+    const {
+      passwordRequired: _legacyPasswordRequired,
+      authSalt: _legacyAuthSalt,
+      passwordIterations: _legacyPasswordIterations,
+      encryptedAccessKey: _legacyAccessKey,
+      ...current
+    } = data || {};
+    return {
+      ...DEFAULT_ACCESS_CENTER,
+      ...current,
+      linkProfiles: current && typeof current.linkProfiles === "object" && current.linkProfiles ? current.linkProfiles : {},
+    };
+  }
+
+  async getConsoleAuth() {
+    const data = await this.readJson(this.consoleAuthFile, DEFAULT_CONSOLE_AUTH);
+    return {
+      ...DEFAULT_CONSOLE_AUTH,
+      ...data,
+      sessions: Array.isArray(data && data.sessions) ? data.sessions : [],
+    };
+  }
+
+  async saveConsoleAuth(nextValue) {
+    const current = await this.getConsoleAuth();
+    const value = { ...current, ...nextValue, updatedAt: new Date().toISOString() };
+    if (!value.createdAt) value.createdAt = value.updatedAt;
+    await this.writeJson(this.consoleAuthFile, value);
+    return this.getConsoleAuth();
+  }
+
+  async saveAccessCenter(nextValue) {
+    const current = await this.getAccessCenter();
+    const value = {
+      ...current,
+      ...nextValue,
+      updatedAt: new Date().toISOString(),
+    };
+    if (!value.createdAt) value.createdAt = value.updatedAt;
+    await this.writeJson(this.accessCenterFile, value);
+    return this.getAccessCenter();
+  }
+
+  async getAccessCenterRuntime() {
+    return {
+      ...DEFAULT_ACCESS_CENTER_RUNTIME,
+      ...(await this.readJson(this.accessCenterRuntimeFile, DEFAULT_ACCESS_CENTER_RUNTIME)),
+    };
+  }
+
+  async saveAccessCenterRuntime(runtime) {
+    const value = {
+      ...DEFAULT_ACCESS_CENTER_RUNTIME,
+      ...runtime,
+      updatedAt: runtime.updatedAt || new Date().toISOString(),
+    };
+    await this.writeJson(this.accessCenterRuntimeFile, value);
+    return value;
+  }
+
+  getAccessCenterConfigPath() {
+    return path.join(this.accessCenterDir, "frpc.toml");
+  }
+
+  getAccessCenterLogPath() {
+    return path.join(this.accessCenterDir, "runtime.log");
   }
 
   async getRuntime(instanceId) {
@@ -274,6 +400,10 @@ class Store {
     return path.join(this.getInstanceDir(instanceId), "selection.json");
   }
 
+  getTunnelGroupOverridesPath(instanceId) {
+    return path.join(this.getInstanceDir(instanceId), "tunnel-groups.json");
+  }
+
   getTunnelLabelsPath(instanceId) {
     return path.join(this.getInstanceDir(instanceId), "tunnel-labels.json");
   }
@@ -301,6 +431,9 @@ class Store {
 }
 
 module.exports = {
+  DEFAULT_ACCESS_CENTER,
+  DEFAULT_ACCESS_CENTER_RUNTIME,
+  DEFAULT_CONSOLE_AUTH,
   DEFAULT_RUNTIME,
   DEFAULT_SETTINGS,
   Store,

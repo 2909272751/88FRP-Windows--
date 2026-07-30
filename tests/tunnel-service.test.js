@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 const {
   buildRuntimeConfig,
+  inferTunnelGroups,
   parseFrpcTunnels,
 } = require("../src/core/tunnel-service");
 
@@ -71,4 +72,22 @@ test("shows cached display names without changing the FRPC selection key", async
   assert.equal(result.tunnels[0].name, "rdp");
   assert.equal(result.tunnels[0].displayName, "公司电脑");
   assert.equal(result.tunnels[0].enabled, true);
+});
+
+test("按备注开头自动分组，并优先保留手动分组", () => {
+  const groups = inferTunnelGroups([
+    { name: "office_pc", displayName: "公司电脑" },
+    { name: "office_nas", displayName: "公司 alist" },
+    { name: "home_pc", displayName: "家电脑" },
+    { name: "home_nas", displayName: "家alist" },
+    { name: "misc", displayName: "cd2" },
+  ], { misc: "测试环境" });
+
+  assert.deepEqual(groups.map((item) => ({ name: item.name, group: item.group, groupSource: item.groupSource })), [
+    { name: "office_pc", group: "公司", groupSource: "automatic" },
+    { name: "office_nas", group: "公司", groupSource: "automatic" },
+    { name: "home_pc", group: "家", groupSource: "automatic" },
+    { name: "home_nas", group: "家", groupSource: "automatic" },
+    { name: "misc", group: "测试环境", groupSource: "manual" },
+  ]);
 });

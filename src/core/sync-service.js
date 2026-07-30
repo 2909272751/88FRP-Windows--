@@ -59,7 +59,7 @@ class SyncService {
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        "User-Agent": "88frp-node/2.0.3",
+        "User-Agent": "88frp-node/3.0.0",
       },
       signal: AbortSignal.timeout(settings.apiTimeout),
     });

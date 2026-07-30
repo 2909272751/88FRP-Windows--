@@ -8,6 +8,7 @@ document.addEventListener("DOMContentLoaded", () => {
     originalAutoSyncEnabled: false,
     tunnels: [],
     tunnelSelection: {},
+    tunnelGroupOverrides: {},
     tunnelLoadState: "idle",
     tunnelLoadError: "",
     tunnelRequestId: 0,
@@ -58,14 +59,21 @@ document.addEventListener("DOMContentLoaded", () => {
     frpAccountStatus: document.getElementById("frpAccountStatus"),
     accountAvatarDot: document.getElementById("accountAvatarDot"),
     frpAccountModal: document.getElementById("frpAccountModal"),
+    frpAccountTitle: document.getElementById("frpAccountTitle"),
+    frpAccountDescription: document.getElementById("frpAccountDescription"),
+    frpAccountCredentials: document.getElementById("frpAccountCredentials"),
+    frpAccountManagement: document.getElementById("frpAccountManagement"),
     frpAccountUsername: document.getElementById("frpAccountUsername"),
     frpAccountPassword: document.getElementById("frpAccountPassword"),
     frpAccountAutoLogin: document.getElementById("frpAccountAutoLogin"),
     btnCancelFrpAccount: document.getElementById("btnCancelFrpAccount"),
+    btnDisconnectFrpAccount: document.getElementById("btnDisconnectFrpAccount"),
+    btnRefreshFrpNames: document.getElementById("btnRefreshFrpNames"),
     btnConnectFrpAccount: document.getElementById("btnConnectFrpAccount"),
     btnToggleSyncSettings: document.getElementById("btnToggleSyncSettings"),
     syncCard: document.getElementById("syncCard"),
     syncSettingsSummary: document.getElementById("syncSettingsSummary"),
+    btnConsoleLogout: document.getElementById("btnConsoleLogout"),
     btnTheme: document.getElementById("btnTheme"),
     newInstName: document.getElementById("newInstName"),
     newInstSecret: document.getElementById("newInstSecret"),
@@ -92,7 +100,10 @@ document.addEventListener("DOMContentLoaded", () => {
     els.btnFrpAccountTop.addEventListener("click", manageFrpAccount);
     els.btnCancelFrpAccount.addEventListener("click", closeFrpAccountModal);
     els.btnConnectFrpAccount.addEventListener("click", connectFrpAccount);
+    els.btnDisconnectFrpAccount.addEventListener("click", disconnectFrpAccount);
+    els.btnRefreshFrpNames.addEventListener("click", refreshFrpTunnelNames);
     els.btnToggleSyncSettings.addEventListener("click", toggleSyncSettings);
+    els.btnConsoleLogout.addEventListener("click", logoutConsole);
     els.btnTheme.addEventListener("click", toggleTheme);
 
     els.btnRefreshLog.addEventListener("click", () => withBusy(loadLogs));
@@ -169,15 +180,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function manageFrpAccount() {
     if (state.frpAccount?.connected) {
-      if (!window.confirm("断开后会清除本机保存的 88FRP 登录令牌和密码，已缓存的隧道名称会保留。是否断开？")) return;
-      await withBusy(async () => {
-        await API.disconnectFrpAccount();
-        await loadFrpAccount();
-        showToast("88FRP 账号已断开");
-      });
+      els.frpAccountTitle.textContent = "管理 88FRP";
+      els.frpAccountDescription.textContent = `${state.frpAccount.username || "已连接账号"} · 可随时手动拉取最新隧道备注。`;
+      els.frpAccountCredentials.hidden = true;
+      els.frpAccountManagement.hidden = false;
+      els.btnConnectFrpAccount.hidden = true;
+      els.btnDisconnectFrpAccount.hidden = false;
+      els.btnRefreshFrpNames.hidden = false;
+      els.frpAccountModal.style.display = "flex";
       return;
     }
 
+    els.frpAccountTitle.textContent = "连接 88FRP";
+    els.frpAccountDescription.textContent = "连接后，同步配置发生变化时会自动更新隧道备注名称。";
+    els.frpAccountCredentials.hidden = false;
+    els.frpAccountManagement.hidden = true;
+    els.btnConnectFrpAccount.hidden = false;
+    els.btnDisconnectFrpAccount.hidden = true;
+    els.btnRefreshFrpNames.hidden = true;
     els.frpAccountUsername.value = "";
     els.frpAccountPassword.value = "";
     els.frpAccountAutoLogin.checked = true;
@@ -188,6 +208,33 @@ document.addEventListener("DOMContentLoaded", () => {
   function closeFrpAccountModal() {
     els.frpAccountModal.style.display = "none";
     els.frpAccountPassword.value = "";
+  }
+
+  async function disconnectFrpAccount() {
+    if (!window.confirm("断开后会清除本机保存的 88FRP 登录令牌和密码，已缓存的隧道名称会保留。是否断开？")) return;
+    await withBusy(async () => {
+      await API.disconnectFrpAccount();
+      await loadFrpAccount();
+      closeFrpAccountModal();
+      showToast("88FRP 账号已断开");
+    });
+  }
+
+  async function logoutConsole() {
+    try {
+      await API.logoutConsole();
+    } finally {
+      window.location.replace("/login");
+    }
+  }
+
+  async function refreshFrpTunnelNames() {
+    await withBusy(async () => {
+      const result = await API.refreshFrpTunnelLabels();
+      await loadFrpAccount();
+      if (state.currentInstanceId) await refreshCurrentInstance();
+      showToast(`已同步 ${result.data?.labelCount || 0} 个隧道名称`);
+    });
   }
 
   async function connectFrpAccount() {
@@ -295,6 +342,7 @@ document.addEventListener("DOMContentLoaded", () => {
     state.currentInstanceId = instanceId;
     state.tunnels = [];
     state.tunnelSelection = {};
+    state.tunnelGroupOverrides = {};
     persistCurrentInstance();
     renderInstanceList();
     setInstancesExpanded(false);
@@ -443,8 +491,10 @@ document.addEventListener("DOMContentLoaded", () => {
       if (requestId !== state.tunnelRequestId) return;
       state.tunnels = res.data.tunnels || [];
       state.tunnelSelection = {};
+      state.tunnelGroupOverrides = {};
       for (const tunnel of state.tunnels) {
         state.tunnelSelection[tunnel.name] = Boolean(tunnel.enabled);
+        state.tunnelGroupOverrides[tunnel.name] = tunnel.groupOverride || "";
       }
       state.tunnelLoadState = "ready";
       renderTunnels();
@@ -503,40 +553,99 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     els.tunnelsList.innerHTML = "";
+    const groups = new Map();
     for (const tunnel of state.tunnels) {
-      const enabled = Boolean(state.tunnelSelection[tunnel.name]);
-      const row = document.createElement("label");
-      row.className = `tunnel-row${enabled ? " is-enabled" : ""}`;
-      row.innerHTML = `
-        <input type="checkbox" ${enabled ? "checked" : ""} aria-label="${escapeHtml(tunnel.displayName || tunnel.name)}">
-        <span class="tunnel-leading"><i class="icon-waypoints" aria-hidden="true"></i></span>
-        <span class="tunnel-body">
-          <span class="tunnel-name">${escapeHtml(tunnel.displayName || tunnel.name)}</span>
-          ${tunnel.displayName ? `<span class="tunnel-id">${escapeHtml(tunnel.name)}</span>` : ""}
-          <span class="tunnel-meta">${escapeHtml(formatTunnelMeta(tunnel))}</span>
+      const group = tunnel.group || "未分组";
+      if (!groups.has(group)) groups.set(group, []);
+      groups.get(group).push(tunnel);
+    }
+    const sortedGroups = [...groups.entries()].sort(([left], [right]) => {
+      if (left === "未分组") return 1;
+      if (right === "未分组") return -1;
+      return left.localeCompare(right, "zh-CN");
+    });
+    for (const [group, groupTunnels] of sortedGroups) {
+      const section = document.createElement("section");
+      section.className = "tunnel-group";
+      const enabledCount = groupTunnels.filter((tunnel) => state.tunnelSelection[tunnel.name]).length;
+      const header = document.createElement("label");
+      header.className = "tunnel-group-header";
+      header.innerHTML = `
+        <span class="tunnel-group-copy">
+          <strong>${escapeHtml(group)}</strong>
+          <span class="tunnel-group-summary">已开启 ${enabledCount} / ${groupTunnels.length} 条</span>
         </span>
-        <span class="material-switch tunnel-switch" aria-hidden="true">
+        <span class="material-switch">
+          <input type="checkbox" aria-label="切换 ${escapeHtml(group)} 分组全部隧道">
           <span class="switch-track"><span class="switch-thumb"></span></span>
         </span>
       `;
-      const checkbox = row.querySelector("input");
-      checkbox.addEventListener("change", (event) => {
-        state.tunnelSelection[tunnel.name] = event.target.checked;
-        row.classList.toggle("is-enabled", event.target.checked);
-        const track = row.querySelector(".switch-track");
-        track.classList.toggle("is-checked", event.target.checked);
-        renderSelectionSummary();
+      const groupToggle = header.querySelector("input");
+      const groupTrack = header.querySelector(".switch-track");
+      const updateGroupToggle = () => {
+        const enabled = groupTunnels.filter((tunnel) => state.tunnelSelection[tunnel.name]).length;
+        groupToggle.indeterminate = enabled > 0 && enabled < groupTunnels.length;
+        groupToggle.checked = enabled === groupTunnels.length;
+        groupTrack.classList.toggle("is-checked", groupToggle.checked);
+        header.querySelector(".tunnel-group-summary").textContent = `已开启 ${enabled} / ${groupTunnels.length} 条`;
+      };
+      updateGroupToggle();
+      groupToggle.addEventListener("change", (event) => {
+        for (const tunnel of groupTunnels) state.tunnelSelection[tunnel.name] = event.target.checked;
+        renderTunnels();
       });
-      const track = row.querySelector(".switch-track");
-      track.classList.toggle("is-checked", enabled);
-      els.tunnelsList.appendChild(row);
+      section.appendChild(header);
+
+      const rows = document.createElement("div");
+      rows.className = "tunnel-group-rows";
+      for (const tunnel of groupTunnels) {
+        const enabled = Boolean(state.tunnelSelection[tunnel.name]);
+        const row = document.createElement("article");
+        row.className = `tunnel-row${enabled ? " is-enabled" : ""}`;
+        const selector = document.createElement("label");
+        selector.className = "tunnel-row-select";
+        selector.innerHTML = `
+          <input type="checkbox" ${enabled ? "checked" : ""} aria-label="${escapeHtml(tunnel.displayName || tunnel.name)}">
+          <span class="tunnel-leading"><i class="icon-waypoints" aria-hidden="true"></i></span>
+          <span class="tunnel-body">
+            <span class="tunnel-name">${escapeHtml(tunnel.displayName || tunnel.name)}</span>
+            ${tunnel.displayName ? `<span class="tunnel-id">${escapeHtml(tunnel.name)}</span>` : ""}
+            <span class="tunnel-meta">${escapeHtml(formatTunnelMeta(tunnel))}</span>
+          </span>
+          <span class="material-switch tunnel-switch" aria-hidden="true">
+            <span class="switch-track"><span class="switch-thumb"></span></span>
+          </span>
+        `;
+        const checkbox = selector.querySelector("input");
+        checkbox.addEventListener("change", (event) => {
+          state.tunnelSelection[tunnel.name] = event.target.checked;
+          row.classList.toggle("is-enabled", event.target.checked);
+          selector.querySelector(".switch-track").classList.toggle("is-checked", event.target.checked);
+          updateGroupToggle();
+          renderSelectionSummary();
+        });
+        selector.querySelector(".switch-track").classList.toggle("is-checked", enabled);
+
+        const groupField = document.createElement("label");
+        groupField.className = "tunnel-group-field";
+        groupField.innerHTML = `<span>分组</span><input type="text" maxlength="40" value="${escapeHtml(state.tunnelGroupOverrides[tunnel.name] || "")}" placeholder="自动：${escapeHtml(tunnel.group || "未分组")}" aria-label="${escapeHtml(tunnel.displayName || tunnel.name)} 的手动分组">`;
+        const groupInput = groupField.querySelector("input");
+        groupInput.addEventListener("input", () => {
+          state.tunnelGroupOverrides[tunnel.name] = groupInput.value;
+        });
+        row.append(selector, groupField);
+        rows.appendChild(row);
+      }
+      section.appendChild(rows);
+      els.tunnelsList.appendChild(section);
     }
     renderSelectionSummary();
   }
 
   function renderSelectionSummary() {
     const enabled = Object.values(state.tunnelSelection).filter(Boolean).length;
-    els.selectionSummary.textContent = `已开启 ${enabled} / ${state.tunnels.length} 条隧道`;
+    const groupCount = new Set(state.tunnels.map((tunnel) => tunnel.group || "未分组")).size;
+    els.selectionSummary.textContent = `已开启 ${enabled} / ${state.tunnels.length} 条隧道 · ${groupCount} 个分组`;
   }
 
   function updateTunnelSelectionActions() {
@@ -558,14 +667,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!current) return;
 
     await withBusy(async () => {
+      await API.saveTunnelGroupOverrides(current.id, state.tunnelGroupOverrides);
       const res = await API.saveTunnelSelection(current.id, state.tunnelSelection);
       state.tunnels = res.data.tunnels || [];
       state.tunnelSelection = {};
+      state.tunnelGroupOverrides = {};
       for (const tunnel of state.tunnels) {
         state.tunnelSelection[tunnel.name] = Boolean(tunnel.enabled);
+        state.tunnelGroupOverrides[tunnel.name] = tunnel.groupOverride || "";
       }
       renderTunnels();
-      showToast("隧道选择已保存，重启实例后生效");
+      showToast("隧道选择和分组已保存，重启实例后生效");
     });
   }
 

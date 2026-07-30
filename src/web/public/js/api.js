@@ -26,6 +26,9 @@ window.API = (() => {
     getHealth() {
       return request("/api/health");
     },
+    logoutConsole() {
+      return request("/api/console-auth/logout", { method: "POST", body: "{}" });
+    },
     getFrpAccount() {
       return request("/api/88frp/account");
     },
@@ -34,6 +37,9 @@ window.API = (() => {
         method: "POST",
         body: JSON.stringify(payload),
       });
+    },
+    refreshFrpTunnelLabels() {
+      return request("/api/88frp/account/refresh-labels", { method: "POST", body: "{}" });
     },
     disconnectFrpAccount() {
       return request("/api/88frp/account", { method: "DELETE" });
@@ -83,6 +89,12 @@ window.API = (() => {
       return request(`/api/instances/${id}/tunnels/selection`, {
         method: "PUT",
         body: JSON.stringify({ selection }),
+      });
+    },
+    saveTunnelGroupOverrides(id, groupOverrides) {
+      return request(`/api/instances/${id}/tunnels/groups`, {
+        method: "PUT",
+        body: JSON.stringify({ groupOverrides }),
       });
     },
     startInstance(id) {

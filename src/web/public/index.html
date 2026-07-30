@@ -51,6 +51,9 @@
           <strong id="topInstanceName">选择实例</strong>
         </div>
         <div class="top-app-bar-actions">
+          <button class="icon-button" id="btnConsoleLogout" type="button" aria-label="退出控制台" title="退出控制台">
+            <i class="icon-log-out" aria-hidden="true"></i>
+          </button>
           <button class="icon-button" id="btnTheme" type="button" aria-label="切换深色模式" title="切换深色模式">
             <i class="icon-moon" aria-hidden="true"></i>
           </button>
@@ -279,7 +282,8 @@
           <i class="icon-x" aria-hidden="true"></i>
         </button>
       </div>
-      <p class="modal-description">连接后，同步配置发生变化时会自动更新隧道备注名称。</p>
+      <p class="modal-description" id="frpAccountDescription">连接后，同步配置发生变化时会自动更新隧道备注名称。</p>
+      <div id="frpAccountCredentials">
       <div class="form-group">
         <label for="frpAccountUsername">账号</label>
         <input type="text" id="frpAccountUsername" class="form-control" autocomplete="username" placeholder="88FRP 用户名或邮箱">
@@ -299,8 +303,15 @@
         </span>
       </label>
       <p class="account-security-note"><i class="icon-shield-check" aria-hidden="true"></i> 密码由当前 Windows 用户加密保护，不写入配置或日志。</p>
+      </div>
+      <div id="frpAccountManagement" class="account-management" hidden>
+        <i class="icon-tags" aria-hidden="true"></i>
+        <div><strong>同步隧道名称</strong><span>从 88FRP 获取最新备注，并立即更新本机和访问中心。</span></div>
+      </div>
       <div class="modal-actions">
         <button class="text-button modal-cancel-button" id="btnCancelFrpAccount" type="button">取消</button>
+        <button class="danger-button" id="btnDisconnectFrpAccount" type="button" hidden><i class="icon-unplug" aria-hidden="true"></i><span>断开账号</span></button>
+        <button class="outline-button" id="btnRefreshFrpNames" type="button" hidden><i class="icon-refresh-cw" aria-hidden="true"></i><span>同步名称</span></button>
         <button class="filled-button" id="btnConnectFrpAccount" type="button">
           <i class="icon-log-in" aria-hidden="true"></i><span>连接账号</span>
         </button>

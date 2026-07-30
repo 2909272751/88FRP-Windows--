@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f5f8fc">
+    <title>88FRP 访问中心</title>
+    <link rel="stylesheet" href="/access/lucide.css">
+    <link rel="stylesheet" href="/access/access.css">
+  </head>
+  <body>
+    <div id="workspace" class="workspace">
+      <header class="topbar">
+        <div class="topbar-inner">
+          <div class="brand-lockup compact">
+            <img src="/access/88frp-logo.png" alt="88FRP" class="brand-logo">
+            <div>
+              <p class="eyebrow">88FRP</p>
+              <h1>访问中心</h1>
+            </div>
+          </div>
+          <div class="topbar-actions">
+            <button id="copyCenterUrl" class="icon-button" type="button" aria-label="复制访问中心地址" title="复制访问中心地址"><span class="icon-copy"></span></button>
+            <button id="openSpeedTest" class="icon-button" type="button" aria-label="测试通道速度" title="测试通道速度"><span class="icon-gauge"></span></button>
+            <button id="refreshLinks" class="icon-button" type="button" aria-label="刷新隧道" title="刷新隧道"><span class="icon-refresh-cw"></span></button>
+          </div>
+        </div>
+      </header>
+
+      <main class="page-content">
+        <section class="overview" aria-labelledby="pageTitle">
+          <div class="overview-copy">
+            <p class="eyebrow">当前设备</p>
+            <h2 id="pageTitle">隧道访问地址</h2>
+            <p id="connectionStatus" class="connection-status"><span class="status-dot"></span>正在读取已同步的隧道</p>
+            <p class="access-mode-notice">公开只读入口：可查看、复制和打开链接；链接设置仅能在 Windows 客户端中修改。</p>
+          </div>
+          <dl class="stats" aria-label="隧道统计">
+            <div><dt>已启用</dt><dd id="enabledCount">0</dd></div>
+            <div><dt>可直接打开</dt><dd id="openableCount">0</dd></div>
+            <div><dt>全部隧道</dt><dd id="totalCount">0</dd></div>
+          </dl>
+        </section>
+
+        <section class="link-section" aria-labelledby="linksTitle">
+          <div class="section-heading">
+            <div>
+              <h2 id="linksTitle">隧道</h2>
+              <p>名称来自 88FRP 同步；已按名称开头自动分组。</p>
+            </div>
+            <label class="search-box" for="linkSearch"><span class="icon-search"></span><input id="linkSearch" type="search" placeholder="搜索名称、端口或实例"></label>
+          </div>
+          <div id="linkList" class="link-list" aria-live="polite"></div>
+          <div id="emptyState" class="empty-state" hidden>
+            <span class="icon-network"></span>
+            <h3>还没有可展示的隧道</h3>
+            <p>在 88FRP Windows 中同步配置后，这里会自动更新。</p>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="speedTestDialog" class="speed-test-dialog" aria-labelledby="speedTestTitle">
+      <section class="speed-test-content">
+        <header class="dialog-header">
+          <div>
+            <p class="eyebrow">自定义 FRP 服务器</p>
+            <h2 id="speedTestTitle">通道测速</h2>
+          </div>
+          <button id="closeSpeedTest" class="icon-button" type="button" aria-label="关闭测速" title="关闭测速"><span class="icon-x"></span></button>
+        </header>
+        <p class="speed-test-copy">测试当前设备经由此服务器访问本机的实际下载链路。测速期间会占用本机上传带宽。</p>
+        <label class="speed-duration" for="speedTestDuration">测试时长
+          <select id="speedTestDuration"><option value="5">5 秒</option><option value="10" selected>10 秒</option><option value="15">15 秒</option><option value="20">20 秒</option></select>
+        </label>
+        <div class="speed-metrics" aria-live="polite">
+          <div><span>延迟</span><strong id="speedLatency">--</strong></div>
+          <div><span>当前速度</span><strong id="speedCurrent">--</strong></div>
+          <div><span>平均速度</span><strong id="speedAverage">--</strong></div>
+          <div><span>峰值速度</span><strong id="speedPeak">--</strong></div>
+        </div>
+        <div class="speed-progress" aria-hidden="true"><span id="speedProgressBar"></span></div>
+        <p id="speedTestStatus" class="speed-status">准备就绪</p>
+        <div class="dialog-actions">
+          <button id="cancelSpeedTest" class="secondary-button" type="button">关闭</button>
+          <button id="startSpeedTest" class="primary-button" type="button"><span class="icon-play"></span>开始测速</button>
+          <button id="stopSpeedTest" class="secondary-button" type="button" hidden><span class="icon-square"></span>停止</button>
+        </div>
+      </section>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="/access/access.js" defer></script>
+  </body>
+</html>

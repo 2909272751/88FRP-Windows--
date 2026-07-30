@@ -25,8 +25,8 @@ using SD = System.Drawing;
 [assembly: AssemblyProduct("88FRP Windows")]
 [assembly: AssemblyDescription("88FRP Windows 隧道控制台")]
 [assembly: AssemblyCompany("88FRP Windows")]
-[assembly: AssemblyVersion("2.0.3.0")]
-[assembly: AssemblyFileVersion("2.0.3.0")]
+[assembly: AssemblyVersion("3.0.0.0")]
+[assembly: AssemblyFileVersion("3.0.0.0")]
 
 internal static class Program
 {
@@ -100,13 +100,21 @@ internal sealed class MainWindow : Window
     private readonly DispatcherTimer pollTimer = new DispatcherTimer();
     private readonly DispatcherTimer watchdogTimer = new DispatcherTimer();
     private readonly List<Dictionary<string, object>> tunnels = new List<Dictionary<string, object>>();
+    private readonly Dictionary<string, CheckBox> tunnelChecks = new Dictionary<string, CheckBox>();
+    private readonly Dictionary<string, TextBox> tunnelGroupInputs = new Dictionary<string, TextBox>();
     private readonly WF.NotifyIcon trayIcon = new WF.NotifyIcon();
     private string currentInstanceId = "";
     private bool exiting;
     private Button autoStartButton;
     private Button syncButton;
     private Button frpAccountButton;
+    private Button frpNameSyncButton;
+    private Button consoleSecurityButton;
+    private Button accessCenterButton;
+    private Button managementHubButton;
+    private Border managementOverlay;
     private TextBlock frpAccountStatus = new TextBlock();
+    private TextBlock accessCenterStatus = new TextBlock();
     private int watchdogFailureCount;
     private int watchdogCheckRunning;
     private bool longOperationRunning;
@@ -191,7 +199,15 @@ internal sealed class MainWindow : Window
         DockPanel.SetDock(create, Dock.Top);
         sideDock.Children.Add(create);
 
-        TextBlock listTitle = new TextBlock { Text = "实例", Foreground = new SolidColorBrush(Color.FromRgb(203, 213, 225)), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 8) };
+        TextBlock settingsTitle = SidebarSectionLabel("设置", new Thickness(0, 0, 0, 8));
+        DockPanel.SetDock(settingsTitle, Dock.Top);
+        sideDock.Children.Add(settingsTitle);
+        managementHubButton = SidebarNavButton("全局设置", "");
+        managementHubButton.Click += delegate { ShowManagementDrawer(); };
+        DockPanel.SetDock(managementHubButton, Dock.Top);
+        sideDock.Children.Add(managementHubButton);
+
+        TextBlock listTitle = SidebarSectionLabel("实例", new Thickness(0, 0, 0, 8));
         DockPanel.SetDock(listTitle, Dock.Top);
         sideDock.Children.Add(listTitle);
 
@@ -222,6 +238,7 @@ internal sealed class MainWindow : Window
         UIElement tabs = BuildTabs();
         Grid.SetRow(tabs, 3);
         main.Children.Add(tabs);
+        root.Children.Add(BuildManagementOverlay());
         return root;
     }
 
@@ -241,15 +258,12 @@ internal sealed class MainWindow : Window
         Button start = PrimaryButton("启动", new SolidColorBrush(Color.FromRgb(22, 163, 74)));
         Button stop = OutlineButton("停止", new SolidColorBrush(Color.FromRgb(185, 28, 28)));
         Button restart = PrimaryButton("重启", new SolidColorBrush(Color.FromRgb(79, 70, 229)));
-        syncButton = PrimaryButton("同步配置", AccentBrush);
         start.Click += delegate { Safe(delegate { RuntimeAction("start"); }); };
         stop.Click += delegate { Safe(delegate { RuntimeAction("stop"); }); };
         restart.Click += delegate { Safe(delegate { RuntimeAction("restart"); }); };
-        syncButton.Click += async delegate { await SyncCurrentAsync(); };
         actions.Children.Add(start);
         actions.Children.Add(stop);
         actions.Children.Add(restart);
-        actions.Children.Add(syncButton);
         return header;
     }
 
@@ -294,6 +308,7 @@ internal sealed class MainWindow : Window
         card.Margin = new Thickness(0, 0, 0, 16);
         DockPanel panel = new DockPanel { Margin = new Thickness(18, 12, 18, 12), LastChildFill = false };
         card.Child = panel;
+        panel.Children.Add(new TextBlock { Text = "同步设置", Foreground = TextBrush, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 18, 0) });
         panel.Children.Add(new TextBlock { Text = "密钥", Foreground = MutedBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) });
         secretBox.Width = 260;
         secretBox.Height = 32;
@@ -304,17 +319,121 @@ internal sealed class MainWindow : Window
         autoSyncBox.Margin = new Thickness(18, 0, 18, 0);
         autoSyncBox.VerticalAlignment = VerticalAlignment.Center;
         panel.Children.Add(autoSyncBox);
-        autoStartButton = OutlineButton(NativeClient.IsAutoStartEnabled() ? "关闭开机自启" : "开启开机自启", AccentBrush);
-        autoStartButton.Click += delegate { Safe(ToggleAutoStart); };
-        panel.Children.Add(autoStartButton);
-        frpAccountButton = OutlineButton("连接 88FRP", AccentBrush);
-        frpAccountButton.Click += async delegate { await ManageFrpAccountAsync(); };
-        panel.Children.Add(frpAccountButton);
-        frpAccountStatus.Foreground = MutedBrush;
-        frpAccountStatus.VerticalAlignment = VerticalAlignment.Center;
-        frpAccountStatus.Margin = new Thickness(10, 0, 0, 0);
-        panel.Children.Add(frpAccountStatus);
+        syncButton = PrimaryButton("同步配置", AccentBrush);
+        syncButton.Click += async delegate { await SyncCurrentAsync(); };
+        panel.Children.Add(syncButton);
         return card;
+    }
+
+    private UIElement BuildManagementOverlay()
+    {
+        managementOverlay = new Border { Visibility = Visibility.Collapsed };
+        Grid.SetColumn(managementOverlay, 1);
+        Grid layer = new Grid();
+        managementOverlay.Child = layer;
+
+        Border scrim = new Border { Background = new SolidColorBrush(Color.FromArgb(82, 15, 23, 42)) };
+        scrim.MouseDown += delegate { CloseManagementDrawer(); };
+        layer.Children.Add(scrim);
+
+        Border drawer = new Border
+        {
+            Width = 356,
+            Background = Brushes.White,
+            BorderBrush = UiBorderBrush,
+            BorderThickness = new Thickness(0, 0, 1, 0),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Padding = new Thickness(24, 26, 24, 24)
+        };
+        layer.Children.Add(drawer);
+        DockPanel dock = new DockPanel { LastChildFill = true };
+        drawer.Child = dock;
+
+        Grid header = new Grid { Margin = new Thickness(0, 0, 0, 22) };
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        StackPanel heading = new StackPanel();
+        heading.Children.Add(new TextBlock { Text = "管理与设置", Foreground = TextBrush, FontSize = 22, FontWeight = FontWeights.Bold });
+        heading.Children.Add(new TextBlock { Text = "账号、安全与后台运行", Foreground = MutedBrush, Margin = new Thickness(0, 4, 0, 0) });
+        header.Children.Add(heading);
+        Button close = OutlineButton("关闭", AccentBrush);
+        close.MinWidth = 68;
+        close.Margin = new Thickness(12, 0, 0, 0);
+        close.Click += delegate { CloseManagementDrawer(); };
+        Grid.SetColumn(close, 1);
+        header.Children.Add(close);
+        DockPanel.SetDock(header, Dock.Top);
+        dock.Children.Add(header);
+
+        ScrollViewer scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        DockPanel.SetDock(scroll, Dock.Top);
+        dock.Children.Add(scroll);
+        StackPanel content = new StackPanel();
+        scroll.Content = content;
+
+        content.Children.Add(DrawerSectionLabel("访问中心"));
+        accessCenterButton = DrawerActionButton("配置访问中心");
+        accessCenterButton.Click += async delegate { await ManageAccessCenterAsync(); };
+        content.Children.Add(accessCenterButton);
+        accessCenterStatus.Foreground = MutedBrush;
+        accessCenterStatus.FontSize = 12;
+        accessCenterStatus.TextWrapping = TextWrapping.Wrap;
+        accessCenterStatus.TextTrimming = TextTrimming.None;
+        accessCenterStatus.ToolTip = "独立 FRP 访问中心：只展示已同步的隧道名称和地址。";
+        accessCenterStatus.Margin = new Thickness(12, 5, 12, 10);
+        content.Children.Add(accessCenterStatus);
+
+        content.Children.Add(DrawerSectionLabel("88FRP 账号"));
+        Grid accountActions = new Grid();
+        accountActions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        accountActions.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        frpAccountButton = DrawerActionButton("连接 88FRP 账号");
+        frpAccountButton.Click += async delegate { await ManageFrpAccountAsync(); };
+        accountActions.Children.Add(frpAccountButton);
+        frpNameSyncButton = DrawerCompactActionButton("同步名称");
+        frpNameSyncButton.Visibility = Visibility.Collapsed;
+        frpNameSyncButton.Click += async delegate { await RefreshFrpTunnelNamesAsync(); };
+        Grid.SetColumn(frpNameSyncButton, 1);
+        accountActions.Children.Add(frpNameSyncButton);
+        content.Children.Add(accountActions);
+        frpAccountStatus.Foreground = MutedBrush;
+        frpAccountStatus.FontSize = 12;
+        frpAccountStatus.TextWrapping = TextWrapping.Wrap;
+        frpAccountStatus.TextTrimming = TextTrimming.None;
+        frpAccountStatus.Margin = new Thickness(12, 5, 12, 10);
+        content.Children.Add(frpAccountStatus);
+        content.Children.Add(DrawerSectionLabel("后台运行"));
+        autoStartButton = DrawerActionButton(NativeClient.IsAutoStartEnabled() ? "开机自启：已开启" : "开机自启：未开启");
+        autoStartButton.Click += delegate { Safe(ToggleAutoStart); };
+        content.Children.Add(autoStartButton);
+
+        content.Children.Add(DrawerSectionLabel("控制台安全"));
+        consoleSecurityButton = DrawerActionButton("设置网页管理登录保护");
+        consoleSecurityButton.Click += async delegate { await ManageConsoleSecurityAsync(); };
+        content.Children.Add(consoleSecurityButton);
+        content.Children.Add(new TextBlock
+        {
+            Text = "网页控制台使用独立管理员账号；修改设置后可撤销已记住的浏览器。",
+            Foreground = MutedBrush,
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            LineHeight = 18,
+            Margin = new Thickness(12, 6, 12, 0)
+        });
+        return managementOverlay;
+    }
+
+    private void ShowManagementDrawer()
+    {
+        if (managementOverlay == null) return;
+        RefreshFrpAccountStatus();
+        managementOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void CloseManagementDrawer()
+    {
+        if (managementOverlay != null) managementOverlay.Visibility = Visibility.Collapsed;
     }
 
     private UIElement BuildTabs()
@@ -437,6 +556,137 @@ internal sealed class MainWindow : Window
         button.Foreground = foreground;
         button.BorderBrush = UiBorderBrush;
         return button;
+    }
+
+    private TextBlock SidebarSectionLabel(string text, Thickness margin)
+    {
+        return new TextBlock
+        {
+            Text = text,
+            Foreground = new SolidColorBrush(Color.FromRgb(203, 213, 225)),
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 12,
+            Margin = margin
+        };
+    }
+
+    private Button SidebarNavButton(string title, string description)
+    {
+        bool hasDescription = !string.IsNullOrWhiteSpace(description);
+        StackPanel content = new StackPanel { Margin = new Thickness(12, hasDescription ? 8 : 0, 12, hasDescription ? 8 : 0), VerticalAlignment = VerticalAlignment.Center };
+        content.Children.Add(new TextBlock { Text = title, Foreground = Brushes.White, FontWeight = FontWeights.SemiBold, FontSize = 14 });
+        if (hasDescription) content.Children.Add(new TextBlock
+        {
+            Text = description,
+            Foreground = new SolidColorBrush(Color.FromRgb(174, 190, 214)),
+            FontSize = 11,
+            Margin = new Thickness(0, 2, 0, 0),
+            TextWrapping = TextWrapping.Wrap
+        });
+        return new Button
+        {
+            Content = content,
+            Height = hasDescription ? 52 : 42,
+            Margin = new Thickness(0, 0, 0, 4),
+            Padding = new Thickness(0),
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Background = new SolidColorBrush(Color.FromRgb(29, 45, 68)),
+            Foreground = Brushes.White,
+            BorderBrush = new SolidColorBrush(Color.FromRgb(49, 65, 89)),
+            BorderThickness = new Thickness(1),
+            Cursor = Cursors.Hand
+        };
+    }
+
+    private Button SidebarFooterSettingsButton()
+    {
+        DockPanel content = new DockPanel { Margin = new Thickness(10, 0, 10, 0) };
+        TextBlock chevron = new TextBlock
+        {
+            Text = ">",
+            Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184)),
+            VerticalAlignment = VerticalAlignment.Center,
+            FontSize = 16
+        };
+        DockPanel.SetDock(chevron, Dock.Right);
+        content.Children.Add(chevron);
+        Border dot = new Border
+        {
+            Background = AccentGreenBrush,
+            Width = 7,
+            Height = 7,
+            CornerRadius = new CornerRadius(4),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(2, 0, 9, 0)
+        };
+        DockPanel.SetDock(dot, Dock.Left);
+        content.Children.Add(dot);
+        content.Children.Add(new TextBlock
+        {
+            Text = "设置",
+            Foreground = new SolidColorBrush(Color.FromRgb(226, 232, 240)),
+            VerticalAlignment = VerticalAlignment.Center,
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold
+        });
+        return new Button
+        {
+            Content = content,
+            Height = 42,
+            Padding = new Thickness(0),
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Background = Brushes.Transparent,
+            BorderBrush = new SolidColorBrush(Color.FromRgb(49, 65, 89)),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Cursor = Cursors.Hand
+        };
+    }
+
+    private TextBlock DrawerSectionLabel(string text)
+    {
+        return new TextBlock
+        {
+            Text = text,
+            Foreground = MutedBrush,
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 22, 0, 8)
+        };
+    }
+
+    private Button DrawerActionButton(string text)
+    {
+        return new Button
+        {
+            Content = text,
+            Height = 42,
+            Margin = new Thickness(0, 0, 0, 6),
+            Padding = new Thickness(12, 0, 12, 0),
+            HorizontalContentAlignment = HorizontalAlignment.Left,
+            Background = new SolidColorBrush(Color.FromRgb(248, 250, 252)),
+            Foreground = TextBrush,
+            BorderBrush = UiBorderBrush,
+            BorderThickness = new Thickness(1),
+            Cursor = Cursors.Hand
+        };
+    }
+
+    private Button DrawerCompactActionButton(string text)
+    {
+        return new Button
+        {
+            Content = text,
+            Height = 42,
+            MinWidth = 94,
+            Margin = new Thickness(8, 0, 0, 6),
+            Padding = new Thickness(10, 0, 10, 0),
+            Background = Brushes.White,
+            Foreground = AccentBrush,
+            BorderBrush = UiBorderBrush,
+            BorderThickness = new Thickness(1),
+            Cursor = Cursors.Hand
+        };
     }
 
     private DataTemplate BuildInstanceItemTemplate()
@@ -576,7 +826,7 @@ internal sealed class MainWindow : Window
         if (result == MessageBoxResult.Yes)
         {
             NativeClient.EnableAutoStart();
-            autoStartButton.Content = "关闭开机自启";
+            autoStartButton.Content = "开机自启：已开启";
             File.WriteAllText(Program.FirstRunPath, "enabled", Encoding.UTF8);
         }
         else
@@ -589,6 +839,7 @@ internal sealed class MainWindow : Window
     {
         backendValue.Text = client.IsBackendHealthy() ? "正常" : "离线";
         RefreshFrpAccountStatus();
+        RefreshAccessCenterStatus();
         RefreshInstances(true);
         if (!string.IsNullOrEmpty(currentInstanceId)) LoadCurrentDetails();
     }
@@ -639,6 +890,8 @@ internal sealed class MainWindow : Window
     {
         tunnels.Clear();
         tunnelPanel.Children.Clear();
+        tunnelChecks.Clear();
+        tunnelGroupInputs.Clear();
         if (string.IsNullOrEmpty(currentInstanceId)) return;
         Dictionary<string, object> data = client.GetDict("/api/instances/" + currentInstanceId + "/tunnels");
         object[] rows = NativeClient.AsArray(data.ContainsKey("tunnels") ? data["tunnels"] : null);
@@ -646,17 +899,111 @@ internal sealed class MainWindow : Window
         {
             Dictionary<string, object> tunnel = NativeClient.AsDict(row);
             tunnels.Add(tunnel);
-            string displayName = NativeClient.GetString(tunnel, "displayName");
-            string title = displayName == "" ? NativeClient.GetString(tunnel, "name") : displayName + "  ·  " + NativeClient.GetString(tunnel, "name");
-            CheckBox check = new CheckBox
+        }
+
+        Dictionary<string, List<Dictionary<string, object>>> groups = new Dictionary<string, List<Dictionary<string, object>>>();
+        List<string> groupOrder = new List<string>();
+        foreach (Dictionary<string, object> tunnel in tunnels)
+        {
+            string group = NativeClient.GetString(tunnel, "group");
+            if (group == "") group = "未分组";
+            if (!groups.ContainsKey(group))
             {
-                IsChecked = NativeClient.GetBool(tunnel, "enabled"),
-                Margin = new Thickness(0, 0, 0, 8),
-                Padding = new Thickness(10),
-                FontSize = 15,
-                Content = title + "    " + NativeClient.GetString(tunnel, "type") + "    本地 " + NativeClient.GetString(tunnel, "localPort") + "  →  远程 " + NativeClient.GetString(tunnel, "remotePort")
+                groups[group] = new List<Dictionary<string, object>>();
+                groupOrder.Add(group);
+            }
+            groups[group].Add(tunnel);
+        }
+        groupOrder.Sort(delegate(string left, string right)
+        {
+            if (left == "未分组") return 1;
+            if (right == "未分组") return -1;
+            return string.Compare(left, right, StringComparison.CurrentCulture);
+        });
+
+        foreach (string group in groupOrder)
+        {
+            List<Dictionary<string, object>> groupTunnels = groups[group];
+            Border groupCard = new Border
+            {
+                BorderBrush = UiBorderBrush,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(5),
+                Background = new SolidColorBrush(Color.FromRgb(250, 252, 255)),
+                Margin = new Thickness(0, 0, 0, 10)
             };
-            tunnelPanel.Children.Add(check);
+            StackPanel groupPanel = new StackPanel();
+            groupCard.Child = groupPanel;
+            CheckBox groupToggle = new CheckBox
+            {
+                Content = group + "  ·  " + groupTunnels.Count + " 条隧道",
+                IsThreeState = true,
+                FontWeight = FontWeights.SemiBold,
+                Padding = new Thickness(12, 9, 12, 9),
+                Background = new SolidColorBrush(Color.FromRgb(241, 245, 249))
+            };
+            groupPanel.Children.Add(groupToggle);
+            List<CheckBox> groupChecks = new List<CheckBox>();
+            bool updatingGroup = false;
+            Action refreshGroupToggle = delegate
+            {
+                int enabledCount = 0;
+                foreach (CheckBox item in groupChecks) if (item.IsChecked == true) enabledCount += 1;
+                updatingGroup = true;
+                groupToggle.IsChecked = enabledCount == groupChecks.Count ? (bool?)true : enabledCount == 0 ? (bool?)false : null;
+                updatingGroup = false;
+            };
+            RoutedEventHandler toggleGroup = delegate(object sender, RoutedEventArgs args)
+            {
+                if (updatingGroup) return;
+                bool enabled = groupToggle.IsChecked == true;
+                updatingGroup = true;
+                foreach (CheckBox item in groupChecks) item.IsChecked = enabled;
+                updatingGroup = false;
+                refreshGroupToggle();
+            };
+            groupToggle.Checked += toggleGroup;
+            groupToggle.Unchecked += toggleGroup;
+
+            foreach (Dictionary<string, object> tunnel in groupTunnels)
+            {
+                string tunnelName = NativeClient.GetString(tunnel, "name");
+                string displayName = NativeClient.GetString(tunnel, "displayName");
+                string title = displayName == "" ? tunnelName : displayName + "  ·  " + tunnelName;
+                Grid row = new Grid { Margin = new Thickness(10, 2, 10, 6) };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(170) });
+                CheckBox check = new CheckBox
+                {
+                    IsChecked = NativeClient.GetBool(tunnel, "enabled"),
+                    Padding = new Thickness(4),
+                    FontSize = 14,
+                    Content = title + "    " + NativeClient.GetString(tunnel, "type") + "    本地 " + NativeClient.GetString(tunnel, "localPort") + "  →  远程 " + NativeClient.GetString(tunnel, "remotePort")
+                };
+                check.Checked += delegate { if (!updatingGroup) refreshGroupToggle(); };
+                check.Unchecked += delegate { if (!updatingGroup) refreshGroupToggle(); };
+                Grid.SetColumn(check, 0);
+                row.Children.Add(check);
+                tunnelChecks[tunnelName] = check;
+                groupChecks.Add(check);
+
+                StackPanel groupEditor = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+                groupEditor.Children.Add(new TextBlock { Text = "分组", Foreground = MutedBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 7, 0) });
+                TextBox groupInput = new TextBox
+                {
+                    Height = 29,
+                    Width = 132,
+                    Text = NativeClient.GetString(tunnel, "groupOverride"),
+                    ToolTip = "留空会继续自动归入“" + group + "”。"
+                };
+                groupEditor.Children.Add(groupInput);
+                Grid.SetColumn(groupEditor, 1);
+                row.Children.Add(groupEditor);
+                tunnelGroupInputs[tunnelName] = groupInput;
+                groupPanel.Children.Add(row);
+            }
+            refreshGroupToggle();
+            tunnelPanel.Children.Add(groupCard);
         }
     }
 
@@ -718,6 +1065,8 @@ internal sealed class MainWindow : Window
         configBox.Text = "";
         tunnelPanel.Children.Clear();
         tunnels.Clear();
+        tunnelChecks.Clear();
+        tunnelGroupInputs.Clear();
         logsBox.Text = "";
     }
 
@@ -739,15 +1088,23 @@ internal sealed class MainWindow : Window
     {
         if (string.IsNullOrEmpty(currentInstanceId)) return;
         Dictionary<string, object> selection = new Dictionary<string, object>();
-        for (int i = 0; i < tunnels.Count; i++)
+        Dictionary<string, object> groupOverrides = new Dictionary<string, object>();
+        foreach (Dictionary<string, object> tunnel in tunnels)
         {
-            CheckBox check = tunnelPanel.Children[i] as CheckBox;
-            selection[NativeClient.GetString(tunnels[i], "name")] = check != null && check.IsChecked == true;
+            string tunnelName = NativeClient.GetString(tunnel, "name");
+            CheckBox check = tunnelChecks.ContainsKey(tunnelName) ? tunnelChecks[tunnelName] : null;
+            TextBox groupInput = tunnelGroupInputs.ContainsKey(tunnelName) ? tunnelGroupInputs[tunnelName] : null;
+            selection[tunnelName] = check != null && check.IsChecked == true;
+            groupOverrides[tunnelName] = groupInput == null ? "" : groupInput.Text.Trim();
         }
+        Dictionary<string, object> groupPayload = new Dictionary<string, object>();
+        groupPayload["groupOverrides"] = groupOverrides;
         Dictionary<string, object> payload = new Dictionary<string, object>();
         payload["selection"] = selection;
+        client.PutDict("/api/instances/" + currentInstanceId + "/tunnels/groups", groupPayload);
         client.PutDict("/api/instances/" + currentInstanceId + "/tunnels/selection", payload);
-        MessageBox.Show("隧道选择已保存，重启实例后生效。", Program.AppName);
+        LoadTunnels();
+        MessageBox.Show("隧道选择和分组已保存，重启实例后生效。", Program.AppName);
     }
 
     private void RuntimeAction(string action)
@@ -782,12 +1139,12 @@ internal sealed class MainWindow : Window
         if (NativeClient.IsAutoStartEnabled())
         {
             NativeClient.DisableAutoStart();
-            autoStartButton.Content = "开启开机自启";
+            autoStartButton.Content = "开机自启：未开启";
         }
         else
         {
             NativeClient.EnableAutoStart();
-            autoStartButton.Content = "关闭开机自启";
+            autoStartButton.Content = "开机自启：已开启";
         }
     }
 
@@ -798,8 +1155,54 @@ internal sealed class MainWindow : Window
         bool connected = NativeClient.GetBool(account, "connected");
         string username = NativeClient.GetString(account, "username");
         bool autoLogin = NativeClient.GetBool(account, "autoLoginEnabled");
-        frpAccountButton.Content = connected ? "管理 88FRP" : "连接 88FRP";
+        frpAccountButton.Content = connected ? "管理 88FRP 账号" : "连接 88FRP 账号";
+        if (frpNameSyncButton != null) frpNameSyncButton.Visibility = connected ? Visibility.Visible : Visibility.Collapsed;
         frpAccountStatus.Text = connected ? (username + (autoLogin ? " · 自动登录" : " · 需手动登录")) : "未连接";
+    }
+
+    private async Task RefreshFrpTunnelNamesAsync()
+    {
+        if (frpNameSyncButton == null || !frpNameSyncButton.IsEnabled) return;
+        frpNameSyncButton.IsEnabled = false;
+        frpNameSyncButton.Content = "同步中…";
+        try
+        {
+            await Task.Run(delegate
+            {
+                client.PostDict("/api/88frp/account/refresh-labels", new Dictionary<string, object>(), 90000);
+            });
+            RefreshFrpAccountStatus();
+            LoadTunnels();
+            frpAccountStatus.Text = frpAccountStatus.Text + "  ·  名称已同步";
+        }
+        catch (Exception ex)
+        {
+            frpAccountStatus.Text = "名称同步失败：" + FriendlyError(ex);
+            frpAccountStatus.ToolTip = FriendlyError(ex);
+        }
+        finally
+        {
+            frpNameSyncButton.Content = "同步名称";
+            frpNameSyncButton.IsEnabled = true;
+        }
+    }
+
+    private async Task ManageConsoleSecurityAsync()
+    {
+        try
+        {
+            Dictionary<string, object> status = client.GetDict("/api/console-auth/status");
+            ConsoleSecurityWindow dialog = new ConsoleSecurityWindow(NativeClient.GetString(status, "username")) { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+            Dictionary<string, object> payload = new Dictionary<string, object>();
+            payload["username"] = dialog.Username;
+            payload["password"] = dialog.Password;
+            bool completed = await RunLongOperationAsync("保存控制台安全设置", delegate { client.PutDict("/api/console-auth", payload, 30000); });
+            if (!completed) return;
+            if (dialog.RevokeDevices) client.PostDict("/api/console-auth/revoke-sessions", new Dictionary<string, object>());
+            MessageBox.Show("控制台账号已保存。普通浏览器登录 24 小时有效；勾选记住设备后会持续登录，直到在此撤销。", Program.AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex) { MessageBox.Show(FriendlyError(ex), Program.AppName, MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
 
     private async Task ManageFrpAccountAsync()
@@ -844,12 +1247,95 @@ internal sealed class MainWindow : Window
         }
     }
 
+    private void RefreshAccessCenterStatus()
+    {
+        if (accessCenterButton == null) return;
+        Dictionary<string, object> status = client.GetDict("/api/access-center");
+        bool configured = NativeClient.GetBool(status, "configured");
+        bool enabled = NativeClient.GetBool(status, "enabled");
+        string runtimeStatus = NativeClient.GetNestedString(status, "runtime", "status");
+        string publicUrl = NativeClient.GetString(status, "publicUrl");
+        string lastError = NativeClient.GetNestedString(status, "runtime", "lastError");
+        accessCenterButton.Content = configured ? "管理访问中心" : "配置访问中心";
+        if (!configured)
+        {
+            accessCenterStatus.Text = "未配置固定访问地址";
+            accessCenterStatus.ToolTip = "独立 FRP 访问中心：只展示已同步的隧道名称和地址。";
+        }
+        else if (!enabled)
+        {
+            accessCenterStatus.Text = "已配置，当前已停止";
+            accessCenterStatus.ToolTip = publicUrl;
+        }
+        else if (runtimeStatus == "running")
+        {
+            accessCenterStatus.Text = publicUrl + "  ·  公开只读";
+            accessCenterStatus.ToolTip = publicUrl + "\n访问中心不设密码，知道地址的人可以查看和打开隧道链接。";
+        }
+        else
+        {
+            accessCenterStatus.Text = lastError == "" ? "连接中…" : "访问中心异常";
+            accessCenterStatus.ToolTip = lastError == "" ? "访问中心正在连接。" : lastError;
+        }
+    }
+
+    private async Task ManageAccessCenterAsync()
+    {
+        try
+        {
+            Dictionary<string, object> status = client.GetDict("/api/access-center");
+            AccessCenterWindow dialog = new AccessCenterWindow(status) { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+
+            if (dialog.DisableRequested)
+            {
+                client.DeleteDict("/api/access-center");
+                RefreshAccessCenterStatus();
+                MessageBox.Show("访问中心已停止。连接信息仍会加密保留，之后可随时重新启用。", Program.AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            Dictionary<string, object> payload = new Dictionary<string, object>();
+            payload["name"] = dialog.CenterName;
+            payload["serverAddr"] = dialog.ServerAddress;
+            payload["serverPort"] = dialog.ServerPort;
+            payload["remotePort"] = dialog.RemotePort;
+            payload["localPort"] = dialog.LocalPort;
+            payload["frpToken"] = dialog.FrpToken;
+            payload["enabled"] = true;
+            bool completed = await RunLongOperationAsync("连接访问中心", delegate
+            {
+                client.PutDict("/api/access-center", payload, 30000);
+            });
+            if (!completed) return;
+            RefreshAccessCenterStatus();
+            Dictionary<string, object> updated = client.GetDict("/api/access-center");
+            string publicUrl = NativeClient.GetString(updated, "publicUrl");
+            string runtimeStatus = NativeClient.GetNestedString(updated, "runtime", "status");
+            if (runtimeStatus == "running")
+            {
+                string accessNotice = "当前为公开只读模式。知道地址的人可以查看和打开链接，但不能从公网修改链接设置。";
+                MessageBox.Show("访问中心已启动。\n\n固定地址：\n" + publicUrl + "\n\n" + accessNotice, Program.AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                MessageBox.Show("配置已保存，但访问中心尚未正常运行。\n\n" + NativeClient.GetNestedString(updated, "runtime", "lastError"), Program.AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            backendValue.Text = "错误";
+            MessageBox.Show(FriendlyError(ex), Program.AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private async Task<bool> RunLongOperationAsync(string statusText, Action operation)
     {
         if (longOperationRunning) return false;
         longOperationRunning = true;
         if (syncButton != null) syncButton.IsEnabled = false;
         if (frpAccountButton != null) frpAccountButton.IsEnabled = false;
+        if (accessCenterButton != null) accessCenterButton.IsEnabled = false;
         backendValue.Text = statusText;
         try
         {
@@ -868,6 +1354,7 @@ internal sealed class MainWindow : Window
             longOperationRunning = false;
             if (syncButton != null) syncButton.IsEnabled = true;
             if (frpAccountButton != null) frpAccountButton.IsEnabled = true;
+            if (accessCenterButton != null) accessCenterButton.IsEnabled = true;
         }
     }
 
@@ -1072,6 +1559,132 @@ internal sealed class FrpAccountWindow : Window
     }
 }
 
+internal sealed class AccessCenterWindow : Window
+{
+    private readonly TextBox nameBox = new TextBox();
+    private readonly TextBox serverAddressBox = new TextBox();
+    private readonly TextBox serverPortBox = new TextBox();
+    private readonly TextBox remotePortBox = new TextBox();
+    private readonly TextBox localPortBox = new TextBox();
+    private readonly PasswordBox frpTokenBox = new PasswordBox();
+    private readonly CheckBox enabledBox = new CheckBox { Content = "启动独立访问中心", IsChecked = true };
+    private readonly bool configured;
+
+    public string CenterName { get { return nameBox.Text.Trim(); } }
+    public string ServerAddress { get { return serverAddressBox.Text.Trim(); } }
+    public string ServerPort { get { return serverPortBox.Text.Trim(); } }
+    public string RemotePort { get { return remotePortBox.Text.Trim(); } }
+    public string LocalPort { get { return localPortBox.Text.Trim(); } }
+    public string FrpToken { get { return frpTokenBox.Password; } }
+    public bool DisableRequested { get { return configured && enabledBox.IsChecked != true; } }
+
+    public AccessCenterWindow(Dictionary<string, object> status)
+    {
+        configured = NativeClient.GetBool(status, "configured");
+        Title = configured ? "管理访问中心" : "配置访问中心";
+        Width = 540;
+        Height = 670;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        ResizeMode = ResizeMode.NoResize;
+        FontFamily = new FontFamily("Microsoft YaHei UI");
+        Icon = NativeClient.LoadIconImage();
+
+        Grid grid = new Grid { Margin = new Thickness(22) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        for (int index = 0; index < 11; index += 1) grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        Content = grid;
+
+        AddLabel(grid, "名称", 0);
+        nameBox.Height = 31;
+        nameBox.Text = NativeClient.GetString(status, "name");
+        Grid.SetRow(nameBox, 0); Grid.SetColumn(nameBox, 1); grid.Children.Add(nameBox);
+
+        AddLabel(grid, "服务地址", 1);
+        serverAddressBox.Height = 31;
+        serverAddressBox.Margin = new Thickness(0, 12, 0, 0);
+        serverAddressBox.Text = NativeClient.GetString(status, "serverAddr");
+        serverAddressBox.ToolTip = "仅填写域名或 IP，不包含 http:// 和端口。";
+        Grid.SetRow(serverAddressBox, 1); Grid.SetColumn(serverAddressBox, 1); grid.Children.Add(serverAddressBox);
+
+        AddLabel(grid, "服务端口", 2);
+        serverPortBox.Height = 31;
+        serverPortBox.Margin = new Thickness(0, 12, 0, 0);
+        serverPortBox.Text = NativeClient.GetString(status, "serverPort");
+        Grid.SetRow(serverPortBox, 2); Grid.SetColumn(serverPortBox, 1); grid.Children.Add(serverPortBox);
+
+        AddLabel(grid, "公网端口", 3);
+        remotePortBox.Height = 31;
+        remotePortBox.Margin = new Thickness(0, 12, 0, 0);
+        remotePortBox.Text = NativeClient.GetString(status, "remotePort");
+        remotePortBox.ToolTip = "FRP 服务端允许映射的公网端口。";
+        Grid.SetRow(remotePortBox, 3); Grid.SetColumn(remotePortBox, 1); grid.Children.Add(remotePortBox);
+
+        AddLabel(grid, "本地端口", 4);
+        localPortBox.Height = 31;
+        localPortBox.Margin = new Thickness(0, 12, 0, 0);
+        localPortBox.Text = NativeClient.GetString(status, "localPort");
+        if (localPortBox.Text == "") localPortBox.Text = "8802";
+        localPortBox.ToolTip = "访问中心仅在本机 127.0.0.1 监听。";
+        Grid.SetRow(localPortBox, 4); Grid.SetColumn(localPortBox, 1); grid.Children.Add(localPortBox);
+
+        AddLabel(grid, "FRP Token", 5);
+        frpTokenBox.Height = 31;
+        frpTokenBox.Margin = new Thickness(0, 12, 0, 0);
+        frpTokenBox.ToolTip = NativeClient.GetBool(status, "frpTokenConfigured") ? "已安全保存；留空可继续使用已保存的 Token。" : "首次配置必须填写。";
+        Grid.SetRow(frpTokenBox, 5); Grid.SetColumn(frpTokenBox, 1); grid.Children.Add(frpTokenBox);
+
+        enabledBox.Margin = new Thickness(0, 14, 0, 0);
+        enabledBox.IsChecked = !configured || NativeClient.GetBool(status, "enabled");
+        Grid.SetRow(enabledBox, 6); Grid.SetColumn(enabledBox, 1); grid.Children.Add(enabledBox);
+
+        TextBlock hint = new TextBlock
+        {
+            Text = configured
+                ? "Token 只在当前 Windows 用户下加密保存。外网入口始终公开只读，链接设置只能在本客户端修改。"
+                : "此连接只用于访问中心，不会替换或修改当前 88FRP 同步隧道。访问中心始终为公开只读入口。",
+            Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139)),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 12, 0, 0)
+        };
+        Grid.SetRow(hint, 7); Grid.SetColumn(hint, 1); grid.Children.Add(hint);
+
+        StackPanel actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
+        Button cancel = new Button { Content = "取消", Width = 92, Height = 32, Margin = new Thickness(8, 0, 0, 0) };
+        Button ok = new Button { Content = configured ? "保存" : "启用", Width = 92, Height = 32, Margin = new Thickness(8, 0, 0, 0), IsDefault = true };
+        cancel.Click += delegate { DialogResult = false; };
+        ok.Click += delegate
+        {
+            if (DisableRequested)
+            {
+                DialogResult = true;
+                return;
+            }
+            if (ServerAddress == "" || ServerPort == "" || RemotePort == "" || LocalPort == "")
+            {
+                MessageBox.Show("请填写服务地址、服务端口、公网端口和本地端口。", Program.AppName);
+                return;
+            }
+            if (!configured && FrpToken == "")
+            {
+                MessageBox.Show("首次启用需要填写 FRP Token。", Program.AppName);
+                return;
+            }
+            DialogResult = true;
+        };
+        actions.Children.Add(cancel);
+        actions.Children.Add(ok);
+        Grid.SetRow(actions, 11); Grid.SetColumnSpan(actions, 2); grid.Children.Add(actions);
+    }
+
+    private void AddLabel(Grid grid, string text, int row)
+    {
+        TextBlock label = new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, row == 0 ? 0 : 12, 12, 0) };
+        Grid.SetRow(label, row); Grid.SetColumn(label, 0); grid.Children.Add(label);
+    }
+}
+
 internal sealed class InstanceListItem
 {
     public string Id { get; set; }
@@ -1216,6 +1829,7 @@ internal sealed class NativeClient
     public Dictionary<string, object> PostDict(string path, Dictionary<string, object> payload) { return AsDict(Request("POST", path, payload, 12000)); }
     public Dictionary<string, object> PostDict(string path, Dictionary<string, object> payload, int timeoutMs) { return AsDict(Request("POST", path, payload, timeoutMs)); }
     public Dictionary<string, object> PutDict(string path, Dictionary<string, object> payload) { return AsDict(Request("PUT", path, payload)); }
+    public Dictionary<string, object> PutDict(string path, Dictionary<string, object> payload, int timeoutMs) { return AsDict(Request("PUT", path, payload, timeoutMs)); }
     public Dictionary<string, object> DeleteDict(string path) { return AsDict(Request("DELETE", path, null)); }
 
     private object Request(string method, string path, Dictionary<string, object> payload, int timeoutMs = 12000)
@@ -1225,6 +1839,7 @@ internal sealed class NativeClient
         request.Timeout = timeoutMs;
         request.ReadWriteTimeout = timeoutMs;
         request.ContentType = "application/json";
+        request.Headers["X-88FRP-Desktop"] = "1";
         if (payload != null)
         {
             byte[] body = Encoding.UTF8.GetBytes(serializer.Serialize(payload));

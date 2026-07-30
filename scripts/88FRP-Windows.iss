@@ -1,5 +1,5 @@
 #define AppName "88FRP"
-#define AppVersion "2.0.3"
+#define AppVersion "3.0.0"
 #define AppPublisher "88FRP Windows"
 #define AppURL "https://github.com/2909272751/88FRP-Windows--"
 #define AppExeName "88FRP.exe"
@@ -19,7 +19,7 @@ DefaultDirName={autopf}\88FRP
 DefaultGroupName=88FRP
 DisableProgramGroupPage=yes
 OutputDir=..\dist
-OutputBaseFilename=88FRP-Windows-Setup-2.0.3
+OutputBaseFilename=88FRP-Windows-Setup-3.0.0
 SetupIconFile=..\assets\88frp-logo.ico
 UninstallDisplayIcon={app}\88FRP.exe
 Compression=lzma2/ultra64

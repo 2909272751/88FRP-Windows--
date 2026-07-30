@@ -15,6 +15,11 @@ async function withServer(run) {
   process.env.FRPC_BINARY_PATH = path.join(tempDir, "88frpc");
 
   const { app, scheduler } = await createWebApp();
+  const originalFetch = global.fetch;
+  global.fetch = (url, options = {}) => originalFetch(url, {
+    ...options,
+    headers: { "X-88FRP-Desktop": "1", ...(options.headers || {}) },
+  });
   const server = await new Promise((resolve) => {
     const instance = app.listen(0, "127.0.0.1", () => resolve(instance));
   });
@@ -28,6 +33,7 @@ async function withServer(run) {
       server.close((error) => (error ? reject(error) : resolve()));
     });
     await fs.rm(tempDir, { recursive: true, force: true });
+    global.fetch = originalFetch;
     delete process.env.DATA_DIR;
     delete process.env.INSTANCE_AUTO_START_ON_BOOT;
     delete process.env.FRPC_BINARY_PATH;
@@ -141,11 +147,13 @@ test("实例名称可通过 API 完整保存和读取中文字符", async () => 
 
 test("Web 页面资源包含隧道备注名称和移动端适配入口", async () => {
   const publicDir = path.join(__dirname, "..", "src", "web", "public");
-  const [page, script, api, styles] = await Promise.all([
+  const [page, script, api, styles, accessPage, accessScript] = await Promise.all([
     fs.readFile(path.join(publicDir, "index.html"), "utf8"),
     fs.readFile(path.join(publicDir, "js", "app.js"), "utf8"),
     fs.readFile(path.join(publicDir, "js", "api.js"), "utf8"),
     fs.readFile(path.join(publicDir, "css", "style.css"), "utf8"),
+    fs.readFile(path.join(publicDir, "access", "index.html"), "utf8"),
+    fs.readFile(path.join(publicDir, "access", "access.js"), "utf8"),
   ]);
 
   assert.match(page, /btnShowInstances/);
@@ -158,7 +166,11 @@ test("Web 页面资源包含隧道备注名称和移动端适配入口", async (
   assert.match(script, /retry-tunnels/);
   assert.match(script, /instance-menu-button/);
   assert.match(script, /deleteInstance\(instance\)/);
+  assert.match(script, /tunnelGroupOverrides/);
+  assert.match(script, /saveTunnelGroupOverrides/);
   assert.match(api, /\/api\/88frp\/account\/connect/);
+  assert.match(api, /\/api\/88frp\/account\/refresh-labels/);
+  assert.match(api, /\/tunnels\/groups/);
   assert.match(styles, /\.sidebar\.is-expanded/);
   assert.match(styles, /\.instance-menu\.is-open/);
   assert.match(styles, /\.content-area\s*\{[^}]*display:\s*flex/s);
@@ -166,6 +178,13 @@ test("Web 页面资源包含隧道备注名称和移动端适配入口", async (
   assert.doesNotMatch(styles, /\.view-panel\s*\{[^}]*position:\s*absolute/s);
   assert.match(styles, /@media \(max-width: 720px\)/);
   assert.match(styles, /safe-area-inset-bottom/);
+  assert.match(styles, /\.tunnel-group/);
+  assert.doesNotMatch(accessPage, /loginScreen|accessPassword/);
+  assert.match(accessScript, /addressValue\.href = link\.url/);
+  assert.match(accessScript, /addressValue\.target = "_blank"/);
+  assert.match(accessScript, /collapsedGroups/);
+  assert.match(accessScript, /speed-test/);
+  assert.match(accessPage, /speedTestDialog/);
 });
 
 test("Web 核心可提供本地 Lucide 图标字体", async () => {
@@ -200,5 +219,18 @@ test("88FRP 账号状态默认未连接且不会泄露凭据", async () => {
     assert.equal(json.data.connected, false);
     assert.equal(Object.prototype.hasOwnProperty.call(json.data, "encryptedToken"), false);
     assert.equal(Object.prototype.hasOwnProperty.call(json.data, "encryptedPassword"), false);
+  });
+});
+
+test("访问中心状态默认未配置且不会泄露认证信息", async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/access-center`);
+    const json = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(json.success, true);
+    assert.equal(json.data.configured, false);
+    assert.equal(Object.prototype.hasOwnProperty.call(json.data, "encryptedFrpToken"), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(json.data, "encryptedAccessKey"), false);
   });
 });

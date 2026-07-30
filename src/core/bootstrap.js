@@ -5,6 +5,8 @@ const { RuntimeService } = require("./runtime-service");
 const { SyncService } = require("./sync-service");
 const { TunnelService } = require("./tunnel-service");
 const { FrpAccountService } = require("./frp-account-service");
+const { AccessCenterService } = require("./access-center-service");
+const { ConsoleAuthService } = require("./console-auth-service");
 const { WindowsCredentialStore } = require("./windows-credential-store");
 const {
   DEFAULT_AUTO_SYNC_INTERVAL_MS,
@@ -41,12 +43,14 @@ async function createAppContext(options = {}) {
   });
 
   const tunnelService = new TunnelService({ store });
-  const frpAccountService = new FrpAccountService({ store, credentialStore: new WindowsCredentialStore() });
+  const credentialStore = options.credentialStore || new WindowsCredentialStore();
+  const frpcBinaryPath = options.frpcBinaryPath || process.env.FRPC_BINARY_PATH || getDefaultFrpcBinaryPath();
+  const frpAccountService = new FrpAccountService({ store, credentialStore });
 
   const processManager = new ProcessManager({
     store,
     logger,
-    frpcBinaryPath: options.frpcBinaryPath || process.env.FRPC_BINARY_PATH || getDefaultFrpcBinaryPath(),
+    frpcBinaryPath,
     prepareConfigPath: (instanceId) => tunnelService.prepareRuntimeConfig(instanceId),
   });
 
@@ -55,6 +59,15 @@ async function createAppContext(options = {}) {
     processManager,
     logger,
   });
+
+  const accessCenterService = new AccessCenterService({
+    store,
+    tunnelService,
+    credentialStore,
+    logger,
+    frpcBinaryPath,
+  });
+  const consoleAuthService = new ConsoleAuthService({ store, credentialStore });
 
   return {
     logger,
@@ -66,6 +79,8 @@ async function createAppContext(options = {}) {
     syncService: new SyncService({ store, runtimeService, logger, tunnelService, frpAccountService }),
     frpAccountService,
     tunnelService,
+    accessCenterService,
+    consoleAuthService,
   };
 }
 
