@@ -1052,13 +1052,17 @@ textarea:disabled {
 
 .tunnel-group + .tunnel-group { margin-top: 14px; }
 
-.tunnel-group-header { display: flex; min-height: 58px; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 14px; border-bottom: 1px solid var(--outline); background: var(--surface-soft); cursor: pointer; }
+.tunnel-group-header { display: flex; min-height: 58px; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 14px; border-bottom: 1px solid var(--outline); background: var(--surface-soft); }
 
 .tunnel-group-copy { display: grid; gap: 3px; min-width: 0; }
 
 .tunnel-group-copy strong { color: var(--text); font-size: 0.96rem; }
 
 .tunnel-group-summary { color: var(--text-secondary); font-size: 0.8rem; }
+
+.tunnel-group-actions { display: inline-flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+
+.group-collapse-button { width: 34px; height: 34px; color: var(--text-secondary); }
 
 .tunnel-group-rows { display: grid; }
 

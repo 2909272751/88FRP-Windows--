@@ -102,6 +102,7 @@ internal sealed class MainWindow : Window
     private readonly List<Dictionary<string, object>> tunnels = new List<Dictionary<string, object>>();
     private readonly Dictionary<string, CheckBox> tunnelChecks = new Dictionary<string, CheckBox>();
     private readonly Dictionary<string, TextBox> tunnelGroupInputs = new Dictionary<string, TextBox>();
+    private readonly HashSet<string> collapsedTunnelGroups = new HashSet<string>(StringComparer.Ordinal);
     private readonly WF.NotifyIcon trayIcon = new WF.NotifyIcon();
     private string currentInstanceId = "";
     private bool exiting;
@@ -118,6 +119,7 @@ internal sealed class MainWindow : Window
     private int watchdogFailureCount;
     private int watchdogCheckRunning;
     private bool longOperationRunning;
+    private static readonly string CollapsedTunnelGroupsPath = Path.Combine(Program.AppDataDir, "native-client-collapsed-tunnel-groups.json");
 
     private static readonly Brush SidebarBrush = new SolidColorBrush(Color.FromRgb(20, 31, 48));
     private static readonly Brush AppBrush = new SolidColorBrush(Color.FromRgb(246, 248, 251));
@@ -144,6 +146,7 @@ internal sealed class MainWindow : Window
         Icon = NativeClient.LoadIconImage();
         TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
         TextOptions.SetTextRenderingMode(this, TextRenderingMode.ClearType);
+        LoadCollapsedTunnelGroups();
 
         Content = BuildRoot();
         BuildTray();
@@ -924,6 +927,8 @@ internal sealed class MainWindow : Window
         foreach (string group in groupOrder)
         {
             List<Dictionary<string, object>> groupTunnels = groups[group];
+            string groupKey = currentInstanceId + "\n" + group;
+            bool collapsed = collapsedTunnelGroups.Contains(groupKey);
             Border groupCard = new Border
             {
                 BorderBrush = UiBorderBrush,
@@ -934,15 +939,47 @@ internal sealed class MainWindow : Window
             };
             StackPanel groupPanel = new StackPanel();
             groupCard.Child = groupPanel;
+            DockPanel groupHeader = new DockPanel
+            {
+                Background = new SolidColorBrush(Color.FromRgb(241, 245, 249)),
+                LastChildFill = true
+            };
+            groupPanel.Children.Add(groupHeader);
+            Button collapseButton = new Button
+            {
+                Content = collapsed ? "⌄" : "⌃",
+                Width = 36,
+                Height = 34,
+                Margin = new Thickness(0, 1, 7, 1),
+                Padding = new Thickness(0),
+                Background = Brushes.Transparent,
+                Foreground = MutedBrush,
+                BorderThickness = new Thickness(0),
+                Cursor = Cursors.Hand,
+                ToolTip = collapsed ? "展开分组" : "收起分组"
+            };
+            DockPanel.SetDock(collapseButton, Dock.Right);
+            groupHeader.Children.Add(collapseButton);
             CheckBox groupToggle = new CheckBox
             {
                 Content = group + "  ·  " + groupTunnels.Count + " 条隧道",
                 IsThreeState = true,
                 FontWeight = FontWeights.SemiBold,
                 Padding = new Thickness(12, 9, 12, 9),
-                Background = new SolidColorBrush(Color.FromRgb(241, 245, 249))
+                Background = Brushes.Transparent
             };
-            groupPanel.Children.Add(groupToggle);
+            groupHeader.Children.Add(groupToggle);
+            StackPanel groupRows = new StackPanel { Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible };
+            groupPanel.Children.Add(groupRows);
+            collapseButton.Click += delegate
+            {
+                bool nextCollapsed = groupRows.Visibility != Visibility.Collapsed;
+                groupRows.Visibility = nextCollapsed ? Visibility.Collapsed : Visibility.Visible;
+                collapseButton.Content = nextCollapsed ? "⌄" : "⌃";
+                collapseButton.ToolTip = nextCollapsed ? "展开分组" : "收起分组";
+                if (nextCollapsed) collapsedTunnelGroups.Add(groupKey); else collapsedTunnelGroups.Remove(groupKey);
+                SaveCollapsedTunnelGroups();
+            };
             List<CheckBox> groupChecks = new List<CheckBox>();
             bool updatingGroup = false;
             Action refreshGroupToggle = delegate
@@ -1000,11 +1037,36 @@ internal sealed class MainWindow : Window
                 Grid.SetColumn(groupEditor, 1);
                 row.Children.Add(groupEditor);
                 tunnelGroupInputs[tunnelName] = groupInput;
-                groupPanel.Children.Add(row);
+                groupRows.Children.Add(row);
             }
             refreshGroupToggle();
             tunnelPanel.Children.Add(groupCard);
         }
+    }
+
+    private void LoadCollapsedTunnelGroups()
+    {
+        try
+        {
+            if (!File.Exists(CollapsedTunnelGroupsPath)) return;
+            object[] values = NativeClient.AsArray(new JavaScriptSerializer().DeserializeObject(File.ReadAllText(CollapsedTunnelGroupsPath, Encoding.UTF8)));
+            foreach (object value in values)
+            {
+                string key = Convert.ToString(value) ?? "";
+                if (key != "") collapsedTunnelGroups.Add(key);
+            }
+        }
+        catch { }
+    }
+
+    private void SaveCollapsedTunnelGroups()
+    {
+        try
+        {
+            Directory.CreateDirectory(Program.AppDataDir);
+            File.WriteAllText(CollapsedTunnelGroupsPath, new JavaScriptSerializer().Serialize(new List<string>(collapsedTunnelGroups)), Encoding.UTF8);
+        }
+        catch { }
     }
 
     private void LoadLogs()

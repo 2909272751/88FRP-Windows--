@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
     tunnels: [],
     tunnelSelection: {},
     tunnelGroupOverrides: {},
+    collapsedTunnelGroups: new Set(readJsonArray("88frp.console.collapsedTunnelGroups")),
     tunnelLoadState: "idle",
     tunnelLoadError: "",
     tunnelRequestId: 0,
@@ -567,21 +568,27 @@ document.addEventListener("DOMContentLoaded", () => {
     for (const [group, groupTunnels] of sortedGroups) {
       const section = document.createElement("section");
       section.className = "tunnel-group";
+      const groupKey = `${state.currentInstanceId || ""}\n${group}`;
+      const collapsed = state.collapsedTunnelGroups.has(groupKey);
       const enabledCount = groupTunnels.filter((tunnel) => state.tunnelSelection[tunnel.name]).length;
-      const header = document.createElement("label");
+      const header = document.createElement("div");
       header.className = "tunnel-group-header";
       header.innerHTML = `
         <span class="tunnel-group-copy">
           <strong>${escapeHtml(group)}</strong>
           <span class="tunnel-group-summary">已开启 ${enabledCount} / ${groupTunnels.length} 条</span>
         </span>
-        <span class="material-switch">
+        <span class="tunnel-group-actions">
+          <button type="button" class="group-collapse-button icon-button" title="${collapsed ? "展开分组" : "收起分组"}" aria-label="${collapsed ? "展开" : "收起"} ${escapeHtml(group)} 分组" aria-expanded="${String(!collapsed)}"><i class="${collapsed ? "icon-chevron-down" : "icon-chevron-up"}" aria-hidden="true"></i></button>
+          <label class="material-switch">
           <input type="checkbox" aria-label="切换 ${escapeHtml(group)} 分组全部隧道">
           <span class="switch-track"><span class="switch-thumb"></span></span>
+          </label>
         </span>
       `;
       const groupToggle = header.querySelector("input");
       const groupTrack = header.querySelector(".switch-track");
+      const collapseButton = header.querySelector(".group-collapse-button");
       const updateGroupToggle = () => {
         const enabled = groupTunnels.filter((tunnel) => state.tunnelSelection[tunnel.name]).length;
         groupToggle.indeterminate = enabled > 0 && enabled < groupTunnels.length;
@@ -594,10 +601,17 @@ document.addEventListener("DOMContentLoaded", () => {
         for (const tunnel of groupTunnels) state.tunnelSelection[tunnel.name] = event.target.checked;
         renderTunnels();
       });
+      collapseButton.addEventListener("click", () => {
+        if (state.collapsedTunnelGroups.has(groupKey)) state.collapsedTunnelGroups.delete(groupKey);
+        else state.collapsedTunnelGroups.add(groupKey);
+        writeLocal("88frp.console.collapsedTunnelGroups", JSON.stringify([...state.collapsedTunnelGroups]));
+        renderTunnels();
+      });
       section.appendChild(header);
 
       const rows = document.createElement("div");
       rows.className = "tunnel-group-rows";
+      rows.hidden = collapsed;
       for (const tunnel of groupTunnels) {
         const enabled = Boolean(state.tunnelSelection[tunnel.name]);
         const row = document.createElement("article");
@@ -935,6 +949,15 @@ document.addEventListener("DOMContentLoaded", () => {
       return window.localStorage.getItem(key);
     } catch {
       return null;
+    }
+  }
+
+  function readJsonArray(key) {
+    try {
+      const value = JSON.parse(readLocal(key) || "[]");
+      return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+    } catch {
+      return [];
     }
   }
 
