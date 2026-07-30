@@ -945,12 +945,34 @@ internal sealed class MainWindow : Window
                 LastChildFill = true
             };
             groupPanel.Children.Add(groupHeader);
+            TextBlock tunnelCount = new TextBlock
+            {
+                Text = groupTunnels.Count + " 条隧道",
+                Foreground = MutedBrush,
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(9, 0, 12, 0)
+            };
+            DockPanel.SetDock(tunnelCount, Dock.Right);
+            groupHeader.Children.Add(tunnelCount);
+            CheckBox groupToggle = new CheckBox
+            {
+                IsThreeState = true,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(3, 0, 6, 0),
+                ToolTip = "启用或停用该分组的全部隧道"
+            };
+            DockPanel.SetDock(groupToggle, Dock.Right);
+            groupHeader.Children.Add(groupToggle);
+            StackPanel groupTitle = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
+            groupHeader.Children.Add(groupTitle);
+            groupTitle.Children.Add(new TextBlock { Text = group, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
             Button collapseButton = new Button
             {
                 Content = collapsed ? "⌄" : "⌃",
                 Width = 36,
                 Height = 34,
-                Margin = new Thickness(0, 1, 7, 1),
+                Margin = new Thickness(3, 1, 0, 1),
                 Padding = new Thickness(0),
                 Background = Brushes.Transparent,
                 Foreground = MutedBrush,
@@ -958,17 +980,7 @@ internal sealed class MainWindow : Window
                 Cursor = Cursors.Hand,
                 ToolTip = collapsed ? "展开分组" : "收起分组"
             };
-            DockPanel.SetDock(collapseButton, Dock.Right);
-            groupHeader.Children.Add(collapseButton);
-            CheckBox groupToggle = new CheckBox
-            {
-                Content = group + "  ·  " + groupTunnels.Count + " 条隧道",
-                IsThreeState = true,
-                FontWeight = FontWeights.SemiBold,
-                Padding = new Thickness(12, 9, 12, 9),
-                Background = Brushes.Transparent
-            };
-            groupHeader.Children.Add(groupToggle);
+            groupTitle.Children.Add(collapseButton);
             StackPanel groupRows = new StackPanel { Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible };
             groupPanel.Children.Add(groupRows);
             collapseButton.Click += delegate

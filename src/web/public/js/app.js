@@ -574,16 +574,16 @@ document.addEventListener("DOMContentLoaded", () => {
       const header = document.createElement("div");
       header.className = "tunnel-group-header";
       header.innerHTML = `
-        <span class="tunnel-group-copy">
+        <span class="tunnel-group-title">
           <strong>${escapeHtml(group)}</strong>
-          <span class="tunnel-group-summary">已开启 ${enabledCount} / ${groupTunnels.length} 条</span>
+          <button type="button" class="group-collapse-button icon-button" title="${collapsed ? "展开分组" : "收起分组"}" aria-label="${collapsed ? "展开" : "收起"} ${escapeHtml(group)} 分组" aria-expanded="${String(!collapsed)}"><i class="${collapsed ? "icon-chevron-down" : "icon-chevron-up"}" aria-hidden="true"></i></button>
         </span>
         <span class="tunnel-group-actions">
-          <button type="button" class="group-collapse-button icon-button" title="${collapsed ? "展开分组" : "收起分组"}" aria-label="${collapsed ? "展开" : "收起"} ${escapeHtml(group)} 分组" aria-expanded="${String(!collapsed)}"><i class="${collapsed ? "icon-chevron-down" : "icon-chevron-up"}" aria-hidden="true"></i></button>
           <label class="material-switch">
-          <input type="checkbox" aria-label="切换 ${escapeHtml(group)} 分组全部隧道">
-          <span class="switch-track"><span class="switch-thumb"></span></span>
+            <input type="checkbox" aria-label="切换 ${escapeHtml(group)} 分组全部隧道">
+            <span class="switch-track"><span class="switch-thumb"></span></span>
           </label>
+          <span class="tunnel-group-summary">${groupTunnels.length} 条隧道</span>
         </span>
       `;
       const groupToggle = header.querySelector("input");
@@ -594,7 +594,7 @@ document.addEventListener("DOMContentLoaded", () => {
         groupToggle.indeterminate = enabled > 0 && enabled < groupTunnels.length;
         groupToggle.checked = enabled === groupTunnels.length;
         groupTrack.classList.toggle("is-checked", groupToggle.checked);
-        header.querySelector(".tunnel-group-summary").textContent = `已开启 ${enabled} / ${groupTunnels.length} 条`;
+        header.querySelector(".tunnel-group-summary").textContent = `${groupTunnels.length} 条隧道`;
       };
       updateGroupToggle();
       groupToggle.addEventListener("change", (event) => {
