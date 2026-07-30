@@ -132,7 +132,7 @@ internal sealed class MainWindow : Window
     public MainWindow(bool backgroundStart)
     {
         this.backgroundStart = backgroundStart;
-        Title = "88FRP";
+        Title = "88FRP v3.0.0";
         Width = 1220;
         Height = 780;
         MinWidth = 1040;
@@ -190,7 +190,7 @@ internal sealed class MainWindow : Window
         StackPanel brandText = new StackPanel { Margin = new Thickness(14, 4, 0, 0) };
         brand.Children.Add(brandText);
         brandText.Children.Add(new TextBlock { Text = "88FRP", Foreground = Brushes.White, FontSize = 26, FontWeight = FontWeights.Bold });
-        brandText.Children.Add(new TextBlock { Text = "Windows 隧道管理器", Foreground = new SolidColorBrush(Color.FromRgb(174, 190, 214)), FontSize = 13, Margin = new Thickness(0, 2, 0, 0) });
+        brandText.Children.Add(new TextBlock { Text = "Windows 隧道管理器 · v3.0.0", Foreground = new SolidColorBrush(Color.FromRgb(174, 190, 214)), FontSize = 13, Margin = new Thickness(0, 2, 0, 0) });
 
         Button create = PrimaryButton("+  新建实例", AccentGreenBrush);
         create.Height = 42;
