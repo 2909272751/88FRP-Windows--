@@ -24,24 +24,24 @@ test("控制台认证使用一次性挑战、可撤销会话且不保存明文�
     const store = new Store({ dataDir });
     await store.initialize();
     const service = new ConsoleAuthService({ store, credentialStore });
-    await service.configure({ username: "admin", password: "a-strong-password" });
+    await service.configure({ username: "admin", password: "short" });
 
     const configured = await service.getStatus();
     const stored = await store.getConsoleAuth();
     assert.equal(configured.configured, true);
-    assert.equal(stored.encryptedVerifier.includes("a-strong-password"), false);
+    assert.equal(stored.encryptedVerifier.includes("short"), false);
 
     const challenge = await service.createChallenge();
     const login = await service.login({
       challengeId: challenge.challengeId,
       username: "admin",
-      proof: createProof("a-strong-password", "admin", challenge),
+      proof: createProof("short", "admin", challenge),
       remember: false,
     }, "127.0.0.1");
     assert.equal(login.maxAge, 24 * 60 * 60);
     assert.equal(await service.verify(login.token), true);
     await assert.rejects(
-      service.login({ challengeId: challenge.challengeId, username: "admin", proof: createProof("a-strong-password", "admin", challenge) }, "127.0.0.1"),
+      service.login({ challengeId: challenge.challengeId, username: "admin", proof: createProof("short", "admin", challenge) }, "127.0.0.1"),
       /过期/
     );
 

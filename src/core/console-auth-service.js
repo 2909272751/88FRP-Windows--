@@ -28,7 +28,7 @@ class ConsoleAuthService {
     const cleanUsername = String(username || "").trim().slice(0, 80);
     const cleanPassword = String(password || "");
     if (!cleanUsername) throw new Error("请输入控制台用户名。");
-    if (cleanPassword.length < 10) throw new Error("控制台密码至少需要 10 个字符。");
+    if (!cleanPassword) throw new Error("请输入控制台密码。");
     const salt = crypto.randomBytes(16).toString("base64");
     const verifier = crypto.pbkdf2Sync(cleanPassword, Buffer.from(salt, "base64"), PASSWORD_ITERATIONS, 32, "sha256");
     await this.store.saveConsoleAuth({ username: cleanUsername, passwordSalt: salt, passwordIterations: PASSWORD_ITERATIONS, encryptedVerifier: await this.credentialStore.protect(verifier.toString("base64")), sessions: [] });
