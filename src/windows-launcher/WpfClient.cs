@@ -31,11 +31,13 @@ using SD = System.Drawing;
 internal static class Program
 {
     internal const string AppName = "88FRP";
+    internal const string AppVersion = "3.0.0";
     internal const string Host = "127.0.0.1";
     internal const int Port = 8801;
     internal static readonly string BaseUrl = "http://" + Host + ":" + Port;
     internal static readonly string AppDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "88frp-node");
     internal static readonly string FirstRunPath = Path.Combine(AppDataDir, "native-client-first-run.flag");
+    internal static readonly string UpdateStatePath = Path.Combine(AppDataDir, "native-client-update-state.json");
 
     [STAThread]
     private static void Main(string[] args)
@@ -99,6 +101,7 @@ internal sealed class MainWindow : Window
     private readonly TextBox logsBox = new TextBox();
     private readonly DispatcherTimer pollTimer = new DispatcherTimer();
     private readonly DispatcherTimer watchdogTimer = new DispatcherTimer();
+    private readonly DispatcherTimer updateTimer = new DispatcherTimer();
     private readonly List<Dictionary<string, object>> tunnels = new List<Dictionary<string, object>>();
     private readonly Dictionary<string, CheckBox> tunnelChecks = new Dictionary<string, CheckBox>();
     private readonly Dictionary<string, TextBox> tunnelGroupInputs = new Dictionary<string, TextBox>();
@@ -113,12 +116,18 @@ internal sealed class MainWindow : Window
     private Button consoleSecurityButton;
     private Button accessCenterButton;
     private Button managementHubButton;
+    private Button checkUpdateButton;
+    private Button openUpdateButton;
     private Border managementOverlay;
     private TextBlock frpAccountStatus = new TextBlock();
     private TextBlock accessCenterStatus = new TextBlock();
+    private TextBlock updateStatus = new TextBlock();
     private int watchdogFailureCount;
     private int watchdogCheckRunning;
     private bool longOperationRunning;
+    private int updateCheckRunning;
+    private string lastNotifiedUpdateVersion = "";
+    private string availableUpdateUrl = "";
     private static readonly string CollapsedTunnelGroupsPath = Path.Combine(Program.AppDataDir, "native-client-collapsed-tunnel-groups.json");
 
     private static readonly Brush SidebarBrush = new SolidColorBrush(Color.FromRgb(20, 31, 48));
@@ -147,11 +156,12 @@ internal sealed class MainWindow : Window
         TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
         TextOptions.SetTextRenderingMode(this, TextRenderingMode.ClearType);
         LoadCollapsedTunnelGroups();
+        LoadUpdateState();
 
         Content = BuildRoot();
         BuildTray();
 
-        Loaded += delegate
+        Loaded += async delegate
         {
             NativeClient.RegisterWindow(this);
             Safe(delegate
@@ -162,8 +172,10 @@ internal sealed class MainWindow : Window
                 RefreshAll();
                 pollTimer.Start();
                 watchdogTimer.Start();
+                updateTimer.Start();
                 if (backgroundStart) HideToTray();
             });
+            await CheckForUpdatesAsync(false);
         };
         Closing += OnClosing;
 
@@ -171,6 +183,8 @@ internal sealed class MainWindow : Window
         pollTimer.Tick += delegate { SafeSilent(delegate { RefreshInstances(true); }); };
         watchdogTimer.Interval = TimeSpan.FromSeconds(10);
         watchdogTimer.Tick += delegate { CheckBackendWatchdog(); };
+        updateTimer.Interval = TimeSpan.FromHours(6);
+        updateTimer.Tick += async delegate { await CheckForUpdatesAsync(false); };
     }
 
     private UIElement BuildRoot()
@@ -411,6 +425,27 @@ internal sealed class MainWindow : Window
         autoStartButton.Click += delegate { Safe(ToggleAutoStart); };
         content.Children.Add(autoStartButton);
 
+        content.Children.Add(DrawerSectionLabel("软件更新"));
+        Grid updateActions = new Grid();
+        updateActions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        updateActions.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        checkUpdateButton = DrawerActionButton("检查更新");
+        checkUpdateButton.Click += async delegate { await CheckForUpdatesAsync(true); };
+        updateActions.Children.Add(checkUpdateButton);
+        openUpdateButton = DrawerCompactActionButton("打开下载页");
+        openUpdateButton.Visibility = Visibility.Collapsed;
+        openUpdateButton.Click += delegate { OpenAvailableUpdate(); };
+        Grid.SetColumn(openUpdateButton, 1);
+        updateActions.Children.Add(openUpdateButton);
+        content.Children.Add(updateActions);
+        updateStatus.Foreground = MutedBrush;
+        updateStatus.FontSize = 12;
+        updateStatus.Text = "自动检测已开启：发现新版本会在后台通知。";
+        updateStatus.TextWrapping = TextWrapping.Wrap;
+        updateStatus.TextTrimming = TextTrimming.None;
+        updateStatus.Margin = new Thickness(12, 5, 12, 10);
+        content.Children.Add(updateStatus);
+
         content.Children.Add(DrawerSectionLabel("控制台安全"));
         consoleSecurityButton = DrawerActionButton("设置网页管理登录保护");
         consoleSecurityButton.Click += async delegate { await ManageConsoleSecurityAsync(); };
@@ -437,6 +472,97 @@ internal sealed class MainWindow : Window
     private void CloseManagementDrawer()
     {
         if (managementOverlay != null) managementOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private async Task CheckForUpdatesAsync(bool manual)
+    {
+        if (Interlocked.Exchange(ref updateCheckRunning, 1) != 0) return;
+        if (manual && checkUpdateButton != null)
+        {
+            checkUpdateButton.IsEnabled = false;
+            updateStatus.Text = "正在检查 GitHub Release...";
+        }
+        try
+        {
+            ReleaseUpdateInfo update = await Task.Run(delegate { return FetchLatestRelease(); });
+            if (update == null)
+            {
+                availableUpdateUrl = "";
+                if (openUpdateButton != null) openUpdateButton.Visibility = Visibility.Collapsed;
+                updateStatus.Text = "当前已是最新版本 v" + Program.AppVersion + "。";
+                return;
+            }
+            availableUpdateUrl = update.Url;
+            updateStatus.Text = "发现新版本 v" + update.Version + "，可打开下载页安装。";
+            if (openUpdateButton != null) openUpdateButton.Visibility = Visibility.Visible;
+            if (!string.Equals(lastNotifiedUpdateVersion, update.Version, StringComparison.Ordinal))
+            {
+                lastNotifiedUpdateVersion = update.Version;
+                SaveUpdateState();
+                trayIcon.ShowBalloonTip(5000, "88FRP 有新版本", "发现 v" + update.Version + "，可在全局设置中打开下载页。", WF.ToolTipIcon.Info);
+            }
+        }
+        catch
+        {
+            if (manual) updateStatus.Text = "暂时无法检查更新，请稍后再试。";
+        }
+        finally
+        {
+            if (checkUpdateButton != null) checkUpdateButton.IsEnabled = true;
+            Interlocked.Exchange(ref updateCheckRunning, 0);
+        }
+    }
+
+    private ReleaseUpdateInfo FetchLatestRelease()
+    {
+        ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
+        HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://api.github.com/repos/2909272751/88FRP-Windows--/releases/latest");
+        request.Method = "GET";
+        request.Timeout = 8000;
+        request.ReadWriteTimeout = 8000;
+        request.UserAgent = "88FRP-Windows/" + Program.AppVersion;
+        request.Accept = "application/vnd.github+json";
+        using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+        using (StreamReader reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8))
+        {
+            Dictionary<string, object> release = NativeClient.AsDict(new JavaScriptSerializer().DeserializeObject(reader.ReadToEnd()));
+            if (NativeClient.GetBool(release, "draft") || NativeClient.GetBool(release, "prerelease")) return null;
+            string version = NativeClient.GetString(release, "tag_name").Trim();
+            if (version.StartsWith("v", StringComparison.OrdinalIgnoreCase)) version = version.Substring(1);
+            Version latest;
+            if (!Version.TryParse(version, out latest) || latest.CompareTo(new Version(Program.AppVersion)) <= 0) return null;
+            string url = NativeClient.GetString(release, "html_url");
+            return string.IsNullOrWhiteSpace(url) ? null : new ReleaseUpdateInfo { Version = version, Url = url };
+        }
+    }
+
+    private void OpenAvailableUpdate()
+    {
+        if (string.IsNullOrWhiteSpace(availableUpdateUrl)) return;
+        try { Process.Start(new ProcessStartInfo { FileName = availableUpdateUrl, UseShellExecute = true }); } catch { }
+    }
+
+    private void LoadUpdateState()
+    {
+        try
+        {
+            if (!File.Exists(Program.UpdateStatePath)) return;
+            Dictionary<string, object> state = NativeClient.AsDict(new JavaScriptSerializer().DeserializeObject(File.ReadAllText(Program.UpdateStatePath, Encoding.UTF8)));
+            lastNotifiedUpdateVersion = NativeClient.GetString(state, "lastNotifiedVersion");
+        }
+        catch { }
+    }
+
+    private void SaveUpdateState()
+    {
+        try
+        {
+            Directory.CreateDirectory(Program.AppDataDir);
+            Dictionary<string, object> state = new Dictionary<string, object>();
+            state["lastNotifiedVersion"] = lastNotifiedUpdateVersion;
+            File.WriteAllText(Program.UpdateStatePath, new JavaScriptSerializer().Serialize(state), Encoding.UTF8);
+        }
+        catch { }
     }
 
     private UIElement BuildTabs()
@@ -1766,6 +1892,12 @@ internal sealed class InstanceListItem
     public string Status { get; set; }
     public string Text { get; set; }
     public override string ToString() { return Text; }
+}
+
+internal sealed class ReleaseUpdateInfo
+{
+    public string Version { get; set; }
+    public string Url { get; set; }
 }
 
 internal static class DpiSupport
