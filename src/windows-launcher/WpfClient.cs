@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -33,11 +34,13 @@ internal static class Program
     internal const string AppName = "88FRP";
     internal const string AppVersion = "3.0.0";
     internal const string Host = "127.0.0.1";
-    internal const int Port = 8801;
-    internal static readonly string BaseUrl = "http://" + Host + ":" + Port;
+    internal const int DefaultConsolePort = 8801;
+    internal static int ConsolePort = DefaultConsolePort;
+    internal static string BaseUrl { get { return "http://" + Host + ":" + ConsolePort; } }
     internal static readonly string AppDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "88frp-node");
     internal static readonly string FirstRunPath = Path.Combine(AppDataDir, "native-client-first-run.flag");
     internal static readonly string UpdateStatePath = Path.Combine(AppDataDir, "native-client-update-state.json");
+    internal static readonly string ServicePortsPath = Path.Combine(AppDataDir, "native-client-service-ports.json");
 
     [STAThread]
     private static void Main(string[] args)
@@ -53,6 +56,7 @@ internal static class Program
         }
 
         Directory.CreateDirectory(AppDataDir);
+        LoadConsolePort();
         App app = new App();
         app.Run(new MainWindow(backgroundStart));
         GC.KeepAlive(mutex);
@@ -65,6 +69,27 @@ internal static class Program
             if (string.Equals(arg, expected, StringComparison.OrdinalIgnoreCase)) return true;
         }
         return false;
+    }
+
+    internal static void SaveConsolePort(int port)
+    {
+        if (port < 1 || port > 65535) throw new ArgumentOutOfRangeException("port");
+        ConsolePort = port;
+        Dictionary<string, object> state = new Dictionary<string, object>();
+        state["consolePort"] = port;
+        File.WriteAllText(ServicePortsPath, new JavaScriptSerializer().Serialize(state), Encoding.UTF8);
+    }
+
+    private static void LoadConsolePort()
+    {
+        try
+        {
+            if (!File.Exists(ServicePortsPath)) return;
+            Dictionary<string, object> state = NativeClient.AsDict(new JavaScriptSerializer().DeserializeObject(File.ReadAllText(ServicePortsPath, Encoding.UTF8)));
+            int port = NativeClient.GetInt(state, "consolePort");
+            if (port >= 1 && port <= 65535) ConsolePort = port;
+        }
+        catch { ConsolePort = DefaultConsolePort; }
     }
 }
 
@@ -116,11 +141,13 @@ internal sealed class MainWindow : Window
     private Button consoleSecurityButton;
     private Button accessCenterButton;
     private Button managementHubButton;
+    private Button servicePortsButton;
     private Button checkUpdateButton;
     private Button openUpdateButton;
     private Border managementOverlay;
     private TextBlock frpAccountStatus = new TextBlock();
     private TextBlock accessCenterStatus = new TextBlock();
+    private TextBlock servicePortsStatus = new TextBlock();
     private TextBlock updateStatus = new TextBlock();
     private int watchdogFailureCount;
     private int watchdogCheckRunning;
@@ -424,6 +451,17 @@ internal sealed class MainWindow : Window
         autoStartButton = DrawerActionButton(NativeClient.IsAutoStartEnabled() ? "开机自启：已开启" : "开机自启：未开启");
         autoStartButton.Click += delegate { Safe(ToggleAutoStart); };
         content.Children.Add(autoStartButton);
+
+        content.Children.Add(DrawerSectionLabel("本机服务端口"));
+        servicePortsButton = DrawerActionButton("管理本机服务端口");
+        servicePortsButton.Click += async delegate { await ManageServicePortsAsync(); };
+        content.Children.Add(servicePortsButton);
+        servicePortsStatus.Text = "控制台 " + Program.ConsolePort + " · 访问中心端口可在此统一调整";
+        servicePortsStatus.Foreground = MutedBrush;
+        servicePortsStatus.FontSize = 12;
+        servicePortsStatus.TextWrapping = TextWrapping.Wrap;
+        servicePortsStatus.Margin = new Thickness(12, 5, 12, 10);
+        content.Children.Add(servicePortsStatus);
 
         content.Children.Add(DrawerSectionLabel("软件更新"));
         Grid updateActions = new Grid();
@@ -1479,6 +1517,91 @@ internal sealed class MainWindow : Window
         }
     }
 
+    private async Task ManageServicePortsAsync()
+    {
+        try
+        {
+            Dictionary<string, object> accessStatus = client.GetDict("/api/access-center");
+            int affectedTunnelCount = CountTunnelsUsingLocalPort(Program.ConsolePort);
+            ServicePortsWindow dialog = new ServicePortsWindow(Program.ConsolePort, accessStatus, affectedTunnelCount) { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+
+            bool consoleChanged = dialog.ConsolePort != Program.ConsolePort;
+            bool accessConfigured = NativeClient.GetBool(accessStatus, "configured");
+            bool accessChanged = accessConfigured && dialog.AccessCenterPort != NativeClient.GetInt(accessStatus, "localPort");
+            if (!consoleChanged && !accessChanged) return;
+            if (consoleChanged && !NativeClient.IsTcpPortAvailable(dialog.ConsolePort))
+            {
+                MessageBox.Show("控制台端口 " + dialog.ConsolePort + " 已被其他程序占用。", Program.AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (accessChanged && !NativeClient.IsTcpPortAvailable(dialog.AccessCenterPort))
+            {
+                MessageBox.Show("访问中心端口 " + dialog.AccessCenterPort + " 已被其他程序占用。", Program.AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            int previousConsolePort = Program.ConsolePort;
+            bool completed = await RunLongOperationAsync("正在应用端口设置", delegate
+            {
+                try
+                {
+                    if (accessChanged)
+                    {
+                        Dictionary<string, object> payload = new Dictionary<string, object>();
+                        payload["localPort"] = dialog.AccessCenterPort;
+                        payload["enabled"] = NativeClient.GetBool(accessStatus, "enabled");
+                        client.PutDict("/api/access-center", payload, 30000);
+                    }
+                    if (consoleChanged)
+                    {
+                        Program.SaveConsolePort(dialog.ConsolePort);
+                        client.RestartBackend();
+                        if (!client.IsBackendHealthy(3000)) throw new Exception("控制台端口切换后后台未能恢复。");
+                    }
+                }
+                catch
+                {
+                    if (consoleChanged)
+                    {
+                        try
+                        {
+                            Program.SaveConsolePort(previousConsolePort);
+                            client.RestartBackend();
+                        }
+                        catch { }
+                    }
+                    throw;
+                }
+            });
+            if (!completed) return;
+            RefreshAccessCenterStatus();
+            servicePortsStatus.Text = "控制台 " + Program.ConsolePort + " · 访问中心端口已应用";
+            MessageBox.Show("端口设置已应用。\n\n控制台：http://127.0.0.1:" + Program.ConsolePort, Program.AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(FriendlyError(ex), Program.AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private int CountTunnelsUsingLocalPort(int port)
+    {
+        int count = 0;
+        foreach (object item in client.GetArray("/api/instances"))
+        {
+            Dictionary<string, object> instance = NativeClient.AsDict(item);
+            string id = NativeClient.GetString(instance, "id");
+            if (id == "") continue;
+            Dictionary<string, object> data = client.GetDict("/api/instances/" + id + "/tunnels");
+            foreach (object tunnelItem in NativeClient.AsArray(data.ContainsKey("tunnels") ? data["tunnels"] : null))
+            {
+                if (NativeClient.GetInt(NativeClient.AsDict(tunnelItem), "localPort") == port) count += 1;
+            }
+        }
+        return count;
+    }
+
     private async Task ManageAccessCenterAsync()
     {
         try
@@ -1894,6 +2017,106 @@ internal sealed class InstanceListItem
     public override string ToString() { return Text; }
 }
 
+internal sealed class ServicePortsWindow : Window
+{
+    private readonly TextBox consolePortBox = new TextBox();
+    private readonly TextBox accessPortBox = new TextBox();
+    private readonly bool accessConfigured;
+
+    public int ConsolePort { get { return ParsePort(consolePortBox.Text); } }
+    public int AccessCenterPort { get { return accessConfigured ? ParsePort(accessPortBox.Text) : 0; } }
+
+    public ServicePortsWindow(int consolePort, Dictionary<string, object> accessStatus, int affectedTunnelCount)
+    {
+        accessConfigured = NativeClient.GetBool(accessStatus, "configured");
+        Title = "本机服务端口";
+        Width = 540;
+        Height = 430;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        ResizeMode = ResizeMode.NoResize;
+        FontFamily = new FontFamily("Microsoft YaHei UI");
+        Icon = NativeClient.LoadIconImage();
+
+        Grid grid = new Grid { Margin = new Thickness(24) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(104) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        for (int index = 0; index < 5; index += 1) grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        Content = grid;
+
+        AddLabel(grid, "控制台端口", 0);
+        consolePortBox.Text = consolePort.ToString();
+        consolePortBox.Height = 32;
+        consolePortBox.VerticalContentAlignment = VerticalAlignment.Center;
+        Grid.SetRow(consolePortBox, 0); Grid.SetColumn(consolePortBox, 1); grid.Children.Add(consolePortBox);
+
+        TextBlock consoleHint = new TextBlock
+        {
+            Text = affectedTunnelCount > 0
+                ? "当前有 " + affectedTunnelCount + " 条 88FRP 隧道指向此端口。改动后需在 88FRP 端同步修改这些隧道的本地端口。"
+                : "控制桌面客户端和网页控制台的本机访问地址。保存后后台会自动重启。",
+            Foreground = affectedTunnelCount > 0 ? new SolidColorBrush(Color.FromRgb(180, 83, 9)) : new SolidColorBrush(Color.FromRgb(100, 116, 139)),
+            TextWrapping = TextWrapping.Wrap,
+            LineHeight = 18,
+            Margin = new Thickness(0, 8, 0, 0)
+        };
+        Grid.SetRow(consoleHint, 1); Grid.SetColumn(consoleHint, 1); grid.Children.Add(consoleHint);
+
+        AddLabel(grid, "访问中心端口", 2);
+        accessPortBox.Text = accessConfigured ? NativeClient.GetInt(accessStatus, "localPort").ToString() : "未启用访问中心";
+        accessPortBox.Height = 32;
+        accessPortBox.VerticalContentAlignment = VerticalAlignment.Center;
+        accessPortBox.IsReadOnly = !accessConfigured;
+        accessPortBox.IsEnabled = accessConfigured;
+        Grid.SetRow(accessPortBox, 2); Grid.SetColumn(accessPortBox, 1); grid.Children.Add(accessPortBox);
+
+        TextBlock accessHint = new TextBlock
+        {
+            Text = accessConfigured ? "仅供独立访问中心在本机监听；保存后访问中心会自动重启。" : "访问中心尚未配置，启用后可在此统一调整端口。",
+            Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139)),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 8, 0, 0)
+        };
+        Grid.SetRow(accessHint, 3); Grid.SetColumn(accessHint, 1); grid.Children.Add(accessHint);
+
+        StackPanel actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
+        Button cancel = new Button { Content = "取消", Width = 92, Height = 32, Margin = new Thickness(8, 0, 0, 0) };
+        Button save = new Button { Content = "保存并重启服务", Width = 126, Height = 32, Margin = new Thickness(8, 0, 0, 0), IsDefault = true };
+        cancel.Click += delegate { DialogResult = false; };
+        save.Click += delegate
+        {
+            int requestedConsolePort = ParsePort(consolePortBox.Text);
+            int requestedAccessPort = accessConfigured ? ParsePort(accessPortBox.Text) : 0;
+            if (requestedConsolePort == 0 || (accessConfigured && requestedAccessPort == 0))
+            {
+                MessageBox.Show("端口必须是 1 到 65535 的整数。", Program.AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (accessConfigured && requestedConsolePort == requestedAccessPort)
+            {
+                MessageBox.Show("控制台和访问中心不能使用同一个本机端口。", Program.AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            DialogResult = true;
+        };
+        actions.Children.Add(cancel);
+        actions.Children.Add(save);
+        Grid.SetRow(actions, 5); Grid.SetColumnSpan(actions, 2); grid.Children.Add(actions);
+    }
+
+    private static int ParsePort(string value)
+    {
+        int port;
+        return int.TryParse(String.Format("{0}", value).Trim(), out port) && port >= 1 && port <= 65535 ? port : 0;
+    }
+
+    private static void AddLabel(Grid grid, string text, int row)
+    {
+        TextBlock label = new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, row == 0 ? 0 : 16, 12, 0) };
+        Grid.SetRow(label, row); Grid.SetColumn(label, 0); grid.Children.Add(label);
+    }
+}
+
 internal sealed class ReleaseUpdateInfo
 {
     public string Version { get; set; }
@@ -1977,7 +2200,7 @@ internal sealed class NativeClient
             info.CreateNoWindow = true;
             info.WindowStyle = ProcessWindowStyle.Hidden;
             info.EnvironmentVariables["HOST"] = Program.Host;
-            info.EnvironmentVariables["PORT"] = Program.Port.ToString();
+            info.EnvironmentVariables["PORT"] = Program.ConsolePort.ToString();
             info.EnvironmentVariables["APP_BASE_DIR"] = Program.AppDataDir;
             info.EnvironmentVariables["INSTANCE_AUTO_START_ON_BOOT"] = "1";
             backendProcess = Process.Start(info);
@@ -2100,6 +2323,11 @@ internal sealed class NativeClient
         if (dict == null || !dict.ContainsKey(key) || dict[key] == null) return false;
         try { return Convert.ToBoolean(dict[key]); } catch { return false; }
     }
+    public static int GetInt(Dictionary<string, object> dict, string key)
+    {
+        if (dict == null || !dict.ContainsKey(key) || dict[key] == null) return 0;
+        try { return Convert.ToInt32(dict[key]); } catch { return 0; }
+    }
     public static string GetNestedString(Dictionary<string, object> dict, string parent, string child)
     {
         if (dict == null || !dict.ContainsKey(parent)) return "";
@@ -2123,6 +2351,18 @@ internal sealed class NativeClient
     public static bool IsAutoStartEnabled()
     {
         using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false)) return key != null && key.GetValue(Program.AppName) != null;
+    }
+    public static bool IsTcpPortAvailable(int port)
+    {
+        try
+        {
+            foreach (IPEndPoint endpoint in IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners())
+            {
+                if (endpoint.Port == port) return false;
+            }
+            return true;
+        }
+        catch { return false; }
     }
     private static void RunHidden(string fileName, string args)
     {
