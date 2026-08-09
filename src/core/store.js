@@ -2,21 +2,29 @@ const fs = require("fs");
 const fsp = require("fs/promises");
 const path = require("path");
 const crypto = require("crypto");
-const { DEFAULT_REMOTE_URL } = require("../shared/constants");
+const { DEFAULT_AUTO_SYNC_INTERVAL_MS, DEFAULT_REMOTE_URL } = require("../shared/constants");
+const { RotatingLogWriter, readLogTail } = require("../shared/log-files");
 
 const DEFAULT_SETTINGS = {
   defaultRemoteUrl: DEFAULT_REMOTE_URL,
   apiTimeout: 10_000,
-  autoSyncIntervalMs: 60_000,
+  autoSyncIntervalMs: DEFAULT_AUTO_SYNC_INTERVAL_MS,
   instanceAutoStartOnBoot: true,
 };
 
 const DEFAULT_RUNTIME = {
   status: "stopped",
   pid: null,
+  ownerPid: null,
+  binaryPath: "",
   lastExitCode: null,
   lastStartedAt: "",
   lastError: "",
+  recoveryPending: false,
+  resumeOnBackendStart: false,
+  outageSince: "",
+  nextRetryAt: "",
+  reconnectAttempt: 0,
   updatedAt: "",
 };
 
@@ -39,8 +47,14 @@ const DEFAULT_ACCESS_CENTER = {
 const DEFAULT_ACCESS_CENTER_RUNTIME = {
   status: "stopped",
   pid: null,
+  ownerPid: null,
+  binaryPath: "",
   lastStartedAt: "",
   lastError: "",
+  recoveryPending: false,
+  outageSince: "",
+  nextRetryAt: "",
+  reconnectAttempt: 0,
   updatedAt: "",
 };
 
@@ -79,6 +93,7 @@ class Store {
     this.consoleAuthFile = path.join(dataDir, "console-auth.json");
     this.accessCenterDir = path.join(dataDir, "access-center");
     this.instancesDir = path.join(dataDir, "instances");
+    this.logWriters = new Map();
   }
 
   async initialize() {
@@ -124,7 +139,12 @@ class Store {
 
   async getSettings() {
     const data = await this.readJson(this.settingsFile, DEFAULT_SETTINGS);
-    return { ...DEFAULT_SETTINGS, ...data };
+    const settings = { ...DEFAULT_SETTINGS, ...data };
+    settings.autoSyncIntervalMs = Math.max(
+      DEFAULT_AUTO_SYNC_INTERVAL_MS,
+      Number(settings.autoSyncIntervalMs) || DEFAULT_AUTO_SYNC_INTERVAL_MS
+    );
+    return settings;
   }
 
   async saveSettings(nextValue) {
@@ -363,12 +383,12 @@ class Store {
   }
 
   async appendAppLog(message) {
-    await fsp.appendFile(this.appLogFile, `${message}\n`, "utf8");
+    await this.getLogWriter(this.appLogFile).write(`${message}\n`);
   }
 
   async appendInstanceLog(instanceId, message) {
     await this.ensureInstanceDirectory(instanceId);
-    await fsp.appendFile(this.getLogPath(instanceId), `${message}\n`, "utf8");
+    await this.getLogWriter(this.getLogPath(instanceId)).write(`${message}\n`);
   }
 
   async readInstanceLog(instanceId, lineLimit = 200) {
@@ -376,12 +396,14 @@ class Store {
   }
 
   async readLogTail(filePath, lineLimit = 200) {
-    try {
-      const raw = await fsp.readFile(filePath, "utf8");
-      return raw.split(/\r?\n/).filter(Boolean).slice(-lineLimit).join("\n");
-    } catch {
-      return "";
+    return readLogTail(filePath, lineLimit);
+  }
+
+  getLogWriter(filePath) {
+    if (!this.logWriters.has(filePath)) {
+      this.logWriters.set(filePath, new RotatingLogWriter(filePath));
     }
+    return this.logWriters.get(filePath);
   }
 
   getInstanceDir(instanceId) {

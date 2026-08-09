@@ -3,6 +3,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
+const net = require("node:net");
+const { EventEmitter } = require("node:events");
 
 const { AccessCenterService, buildLink, createAccessCenterApp } = require("../src/core/access-center-service");
 const { Store } = require("../src/core/store");
@@ -15,6 +17,52 @@ const credentialStore = {
     return Buffer.from(String(value).slice("protected:".length), "base64").toString("utf8");
   },
 };
+
+class FakeFrpcChild extends EventEmitter {
+  constructor(pid, alive) {
+    super();
+    this.pid = pid;
+    this.alive = alive;
+    this.stdout = new EventEmitter();
+    this.stderr = new EventEmitter();
+    this.killed = false;
+    alive.add(pid);
+  }
+
+  start() {
+    setImmediate(() => this.emit("spawn"));
+  }
+
+  crash(code = 1) {
+    if (this.alive.delete(this.pid)) this.emit("close", code);
+  }
+
+  kill() {
+    this.killed = true;
+    if (this.alive.delete(this.pid)) this.emit("close", 0);
+    return true;
+  }
+}
+
+async function getAvailablePort() {
+  const server = net.createServer();
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const port = server.address().port;
+  await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  return port;
+}
+
+async function waitFor(predicate, timeoutMs = 800) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error("condition was not reached before timeout");
+}
 
 async function withAccessCenter(run) {
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "88frp-access-center-"));
@@ -236,4 +284,149 @@ test("所有 TCP 隧道默认生成 HTTP 访问链接", () => {
   const result = buildLink({ type: "tcp", localPort: 3389, remotePort: 13966 }, "edge.example.test");
   assert.equal(result.url, "http://edge.example.test:13966");
   assert.equal(result.canOpen, true);
+});
+
+test("能够识别 Windows PowerShell 返回的访问中心进程字段", async () => {
+  const binaryPath = path.join("D:\\88FRP", "resources", "88frpc.exe");
+  const startedAt = "2026-08-09T06:52:00.808Z";
+  const service = new AccessCenterService({
+    store: {},
+    tunnelService: {},
+    credentialStore: {},
+    logger: {},
+    frpcBinaryPath: binaryPath,
+    pidAlive: () => true,
+    processInspector: async () => ({
+      Name: "88frpc",
+      Path: null,
+      StartTime: "2026-08-09T06:52:00.8062455Z",
+    }),
+  });
+
+  assert.equal(await service.isOwnedAccessProcess(404, { lastStartedAt: startedAt }), true);
+});
+
+test("无法停止旧访问中心 FRPC 时会接管原进程而不是重复启动", async () => {
+  const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "88frp-access-adopt-"));
+  const store = new Store({ dataDir });
+  let service;
+  let alive = true;
+  try {
+    await store.initialize();
+    const binaryPath = path.join(dataDir, "88frpc.exe");
+    await fs.writeFile(binaryPath, "fake", "utf8");
+    const localPort = await getAvailablePort();
+    await store.saveAccessCenter({
+      enabled: true,
+      serverAddr: "hub.example.test",
+      serverPort: 18926,
+      remotePort: 18928,
+      localHost: "127.0.0.1",
+      localPort,
+      publicUrl: "http://hub.example.test:18928/access",
+      encryptedFrpToken: "unused-while-adopting",
+    });
+    const startedAt = new Date().toISOString();
+    await store.saveAccessCenterRuntime({
+      status: "running",
+      pid: 43_211,
+      ownerPid: process.pid + 1,
+      binaryPath,
+      lastStartedAt: startedAt,
+    });
+    let spawnCount = 0;
+    const warnings = [];
+    service = new AccessCenterService({
+      store,
+      tunnelService: new TunnelService({ store }),
+      credentialStore,
+      logger: {
+        async info() {},
+        async warn(message) { warnings.push(message); },
+        async error() {},
+      },
+      frpcBinaryPath: binaryPath,
+      pidAlive: () => alive,
+      processInspector: async () => ({ name: "88frpc", path: binaryPath, startTime: startedAt }),
+      signalProcess() {
+        const error = new Error("operation not permitted");
+        error.code = "EPERM";
+        throw error;
+      },
+      spawnProcess() {
+        spawnCount += 1;
+        throw new Error("must not spawn");
+      },
+    });
+
+    await service.start();
+
+    const runtime = await store.getAccessCenterRuntime();
+    assert.equal(spawnCount, 0);
+    assert.equal(runtime.pid, 43_211);
+    assert.equal(runtime.status, "running");
+    assert.equal(warnings.length, 1);
+  } finally {
+    alive = false;
+    if (service) await service.stop();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("访问中心配置允许首次连接失败后持续重试", async () => {
+  const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "88frp-access-recovery-"));
+  const store = new Store({ dataDir });
+  const alive = new Set();
+  const children = [];
+  let nextPid = 60_000;
+  let service;
+  try {
+    await store.initialize();
+    const binaryPath = path.join(dataDir, "88frpc.exe");
+    await fs.writeFile(binaryPath, "fake", "utf8");
+    service = new AccessCenterService({
+      store,
+      tunnelService: new TunnelService({ store }),
+      credentialStore,
+      logger: { async info() {}, async warn() {}, async error() {} },
+      frpcBinaryPath: binaryPath,
+      restartDelays: [5, 10],
+      stableAfterMs: 60,
+      monitorIntervalMs: 100,
+      startupProbeMs: 2,
+      pidAlive: (pid) => alive.has(pid),
+      processInspector: async () => null,
+      spawnProcess() {
+        const child = new FakeFrpcChild(nextPid++, alive);
+        children.push(child);
+        child.start();
+        return child;
+      },
+    });
+    const localPort = await getAvailablePort();
+    await service.configure({
+      enabled: true,
+      serverAddr: "hub.example.test",
+      serverPort: 18926,
+      remotePort: 18928,
+      localPort,
+      frpToken: "frp-token",
+    });
+    assert.equal(children.length, 1);
+    assert.match(
+      service.buildFrpcConfig(await store.getAccessCenter(), "frp-token"),
+      /loginFailExit = false/
+    );
+
+    children[0].crash(1);
+    await waitFor(async () => children.length === 2 && (await store.getAccessCenterRuntime()).status === "running");
+    assert.equal(children.length, 2);
+
+    await service.stop();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(children.length, 2, "manual stop must cancel access-center recovery");
+  } finally {
+    if (service) await service.stop();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  }
 });

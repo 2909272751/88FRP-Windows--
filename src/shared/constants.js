@@ -1,6 +1,6 @@
 const DEFAULT_AGENT_HOST = "127.0.0.1";
 const DEFAULT_AGENT_PORT = 19688;
-const DEFAULT_AUTO_SYNC_INTERVAL_MS = 60_000;
+const DEFAULT_AUTO_SYNC_INTERVAL_MS = 5 * 60_000;
 const DEFAULT_INSTANCE_AUTO_START_ON_BOOT = true;
 const DEFAULT_REMOTE_URL = "https://auth.88frp.com/config?secret={{secret}}";
 const {

@@ -8,13 +8,13 @@ const express = require("express");
 const { DEFAULT_REMOTE_URL } = require("../src/shared/constants");
 const { createWebApp, listenWebApp } = require("../src/web/server");
 
-async function withServer(run) {
+async function withServer(run, appOptions = {}) {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "88frp-node-test-"));
   process.env.DATA_DIR = tempDir;
   process.env.INSTANCE_AUTO_START_ON_BOOT = "0";
   process.env.FRPC_BINARY_PATH = path.join(tempDir, "88frpc");
 
-  const { app, scheduler } = await createWebApp();
+  const { app, scheduler } = await createWebApp(appOptions);
   const originalFetch = global.fetch;
   global.fetch = (url, options = {}) => originalFetch(url, {
     ...options,
@@ -232,5 +232,21 @@ test("访问中心状态默认未配置且不会泄露认证信息", async () =>
     assert.equal(json.data.configured, false);
     assert.equal(Object.prototype.hasOwnProperty.call(json.data, "encryptedFrpToken"), false);
     assert.equal(Object.prototype.hasOwnProperty.call(json.data, "encryptedAccessKey"), false);
+  });
+});
+
+test("Windows 客户端可以请求后台核心安全停止并保留恢复选项", async () => {
+  let shutdownOptions = null;
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/system/shutdown`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ stopInstances: false }),
+    });
+    assert.equal(response.status, 200);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    assert.deepEqual(shutdownOptions, { stopInstances: false });
+  }, {
+    requestShutdown(options) { shutdownOptions = options; },
   });
 });

@@ -924,7 +924,7 @@ internal sealed class MainWindow : Window
         menu.Items.Add("打开网页控制台", null, delegate { NativeClient.OpenConsoleFallback(); });
         menu.Items.Add("重启后台", null, delegate { Safe(delegate { client.RestartBackend(); RefreshAll(); }); });
         menu.Items.Add(new WF.ToolStripSeparator());
-        menu.Items.Add("退出", null, delegate { exiting = true; trayIcon.Visible = false; client.StopBackend(); Close(); });
+        menu.Items.Add("退出", null, delegate { exiting = true; trayIcon.Visible = false; client.StopBackend(true); Close(); });
         trayIcon.Icon = NativeClient.LoadAppIcon();
         trayIcon.Text = "88FRP 正在后台运行";
         trayIcon.Visible = true;
@@ -1510,6 +1510,11 @@ internal sealed class MainWindow : Window
             accessCenterStatus.Text = publicUrl + "  ·  公开只读";
             accessCenterStatus.ToolTip = publicUrl + "\n访问中心不设密码，知道地址的人可以查看和打开隧道链接。";
         }
+        else if (runtimeStatus == "reconnecting" || runtimeStatus == "restarting")
+        {
+            accessCenterStatus.Text = "访问中心重连中…";
+            accessCenterStatus.ToolTip = lastError == "" ? "网络恢复后会自动重新连接。" : lastError + "\n软件会继续自动重试。";
+        }
         else
         {
             accessCenterStatus.Text = lastError == "" ? "连接中…" : "访问中心异常";
@@ -1751,6 +1756,8 @@ internal sealed class MainWindow : Window
         if (status == "stopped") return "已停止";
         if (status == "starting") return "启动中";
         if (status == "stopping") return "停止中";
+        if (status == "reconnecting") return "重连中";
+        if (status == "restarting") return "恢复中";
         if (status == "error") return "异常";
         return "未知";
     }
@@ -2207,10 +2214,27 @@ internal sealed class NativeClient
         }
     }
 
-    public void StopBackend()
+    public void StopBackend(bool stopInstances = true)
     {
         lock (backendLifecycleLock)
         {
+            bool gracefulRequested = false;
+            try
+            {
+                if (IsBackendHealthy(1200))
+                {
+                    RequestBackendShutdown(stopInstances);
+                    gracefulRequested = true;
+                }
+            }
+            catch { }
+
+            if (gracefulRequested)
+            {
+                DateTime deadline = DateTime.Now.AddSeconds(15);
+                while (DateTime.Now < deadline && IsBackendHealthy(350)) Thread.Sleep(150);
+            }
+
             try
             {
                 if (backendProcess != null && !backendProcess.HasExited)
@@ -2224,9 +2248,26 @@ internal sealed class NativeClient
         }
     }
 
+    private void RequestBackendShutdown(bool stopInstances)
+    {
+        HttpWebRequest request = (HttpWebRequest)WebRequest.Create(Program.BaseUrl + "/api/system/shutdown");
+        request.Method = "POST";
+        request.Timeout = 2500;
+        request.ReadWriteTimeout = 2500;
+        request.ContentType = "application/json; charset=utf-8";
+        request.Headers["X-88FRP-Desktop"] = "1";
+        byte[] body = Encoding.UTF8.GetBytes("{\"stopInstances\":" + (stopInstances ? "true" : "false") + "}");
+        request.ContentLength = body.Length;
+        using (Stream stream = request.GetRequestStream()) stream.Write(body, 0, body.Length);
+        using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+        {
+            if (response.StatusCode != HttpStatusCode.OK) throw new WebException("后台核心拒绝安全停止请求。");
+        }
+    }
+
     public void RestartBackend()
     {
-        StopBackend();
+        StopBackend(false);
         Thread.Sleep(700);
         StartBackend();
         WaitForBackend();

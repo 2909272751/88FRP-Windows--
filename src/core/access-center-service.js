@@ -6,7 +6,11 @@ const { spawn } = require("child_process");
 const express = require("express");
 
 const { parseFrpcServerAddr } = require("./tunnel-service");
+const { RotatingLogWriter } = require("../shared/log-files");
+const { areSamePath, inspectWindowsProcess, isPidAlive } = require("../shared/process-utils");
 const { getPublicDir } = require("../shared/runtime-env");
+
+const DEFAULT_RESTART_DELAYS = [2_000, 5_000, 10_000, 20_000, 30_000, 60_000];
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -141,15 +145,46 @@ function buildLink(tunnel, serverAddr, profile = {}) {
 }
 
 class AccessCenterService {
-  constructor({ store, tunnelService, credentialStore, logger, frpcBinaryPath }) {
+  constructor({
+    store,
+    tunnelService,
+    credentialStore,
+    logger,
+    frpcBinaryPath,
+    spawnProcess = spawn,
+    restartDelays = DEFAULT_RESTART_DELAYS,
+    stableAfterMs = 60_000,
+    monitorIntervalMs = 10_000,
+    startupProbeMs = 900,
+    processInspector = null,
+    pidAlive = null,
+    signalProcess = process.kill.bind(process),
+  }) {
     this.store = store;
     this.tunnelService = tunnelService;
     this.credentialStore = credentialStore;
     this.logger = logger;
     this.frpcBinaryPath = frpcBinaryPath;
+    this.spawnProcess = spawnProcess;
+    this.restartDelays = restartDelays;
+    this.stableAfterMs = stableAfterMs;
+    this.monitorIntervalMs = monitorIntervalMs;
+    this.startupProbeMs = startupProbeMs;
+    this.processInspector = processInspector;
+    this.pidAlive = pidAlive;
+    this.signalProcess = signalProcess;
     this.localServer = null;
     this.frpcProcess = null;
+    this.activePid = null;
     this.secrets = null;
+    this.desiredRunning = false;
+    this.launchTask = null;
+    this.restartTimer = null;
+    this.stableTimer = null;
+    this.monitorTimer = null;
+    this.reconnectAttempt = 0;
+    this.outageStartedAt = 0;
+    this.prolongedFailureLogged = false;
   }
 
   async getStatus() {
@@ -222,91 +257,175 @@ class AccessCenterService {
   async start() {
     const config = await this.store.getAccessCenter();
     if (!config.enabled) return this.getStatus();
-    if (this.localServer || this.frpcProcess) return this.getStatus();
+    this.desiredRunning = true;
+    if (this.activePid && this.isPidAlive(this.activePid)) return this.getStatus();
+    if (this.launchTask) return this.launchTask;
     if (!fs.existsSync(this.frpcBinaryPath)) throw new Error("未找到 frpc，无法启动访问中心。");
 
-    await this.stopStaleProcess();
-    await this.startLocalServer(config);
+    const task = this.startInternal(config);
+    this.launchTask = task;
+    return task.finally(() => {
+      if (this.launchTask === task) this.launchTask = null;
+    });
+  }
+
+  async startInternal(config) {
+    const runtime = await this.store.getAccessCenterRuntime();
+    if (runtime.pid && this.isPidAlive(runtime.pid) && await this.isOwnedAccessProcess(runtime.pid, runtime)) {
+      if (runtime.ownerPid === process.pid && this.frpcProcess) {
+        this.activePid = runtime.pid;
+        await this.startLocalServer(config);
+        this.startMonitor();
+        return this.getStatus();
+      }
+      const stopped = await this.stopStaleProcess(runtime);
+      if (!stopped) {
+        this.activePid = runtime.pid;
+        await this.startLocalServer(config);
+        await this.store.saveAccessCenterRuntime({
+          ...runtime,
+          status: "running",
+          ownerPid: process.pid,
+          binaryPath: this.frpcBinaryPath,
+          lastError: "",
+          recoveryPending: false,
+          nextRetryAt: "",
+          reconnectAttempt: 0,
+        });
+        if (this.logger.warn) {
+          await this.logger.warn("访问中心原进程无法由当前权限停止，已安全接管，未重复启动。");
+        }
+        this.markStable(runtime.pid);
+        this.startMonitor();
+        return this.getStatus();
+      }
+    }
+
     try {
-      const frpToken = await this.getFrpToken(config);
-      const configText = this.buildFrpcConfig(config, frpToken);
-      await fsp.writeFile(this.store.getAccessCenterConfigPath(), configText, "utf8");
-      await this.startFrpc(config);
-      await delay(900);
-      if (!this.frpcProcess) throw new Error("访问中心 FRPC 未能保持运行，请检查服务端地址、Token 和端口权限。");
-      await fsp.rm(this.store.getAccessCenterConfigPath(), { force: true });
-      await this.logger.info(`访问中心已启动：${config.publicUrl}`);
+      await this.startLocalServer(config);
     } catch (error) {
-      await fsp.rm(this.store.getAccessCenterConfigPath(), { force: true });
-      await this.closeLocalServer();
-      await this.store.saveAccessCenterRuntime({ status: "error", pid: null, lastError: error.message });
+      this.desiredRunning = false;
+      await this.store.saveAccessCenterRuntime({
+        ...runtime,
+        status: "error",
+        pid: null,
+        lastError: `访问中心本地端口启动失败：${error.message}`,
+      });
       throw error;
     }
+
+    try {
+      await this.launchFrpc(config);
+    } catch (error) {
+      await this.scheduleRecovery(error.message);
+    }
+    this.startMonitor();
     return this.getStatus();
   }
 
   async stop() {
+    this.desiredRunning = false;
+    this.stopMonitoring();
     const runtime = await this.store.getAccessCenterRuntime();
     const child = this.frpcProcess;
     this.frpcProcess = null;
-    if (child && !child.killed) {
-      try { child.kill("SIGTERM"); } catch { /* ignore process shutdown errors */ }
-    } else if (runtime.pid && await this.isOwnedAccessProcess(runtime.pid)) {
-      try { process.kill(runtime.pid, "SIGTERM"); } catch { /* stale process has already exited */ }
-    }
+    const activePid = this.activePid || runtime.pid;
+    this.activePid = null;
+    const owned = child || (activePid && await this.isOwnedAccessProcess(activePid, runtime));
+    const stopped = !activePid || !owned || await this.terminateProcess(activePid, child);
     await this.closeLocalServer();
-    await this.store.saveAccessCenterRuntime({ ...runtime, status: "stopped", pid: null, lastError: "" });
+    if (!stopped && activePid) {
+      const message = "当前权限无法停止访问中心 FRPC，已保留进程记录以避免重复启动。";
+      await this.store.saveAccessCenterRuntime({
+        ...runtime,
+        status: "error",
+        pid: activePid,
+        lastError: message,
+        recoveryPending: false,
+      });
+      throw new Error(message);
+    }
+    await this.store.saveAccessCenterRuntime({
+      ...runtime,
+      status: "stopped",
+      pid: null,
+      ownerPid: null,
+      lastError: "",
+      recoveryPending: false,
+      outageSince: "",
+      nextRetryAt: "",
+      reconnectAttempt: 0,
+    });
   }
 
-  async stopStaleProcess() {
-    const runtime = await this.store.getAccessCenterRuntime();
-    if (!runtime.pid || !await this.isOwnedAccessProcess(runtime.pid)) return;
+  async stopStaleProcess(runtimeValue = null) {
+    const runtime = runtimeValue || await this.store.getAccessCenterRuntime();
+    if (!runtime.pid || !await this.isOwnedAccessProcess(runtime.pid, runtime)) return true;
+    const stopped = await this.terminateProcess(runtime.pid);
+    if (!stopped) return false;
+    await this.store.saveAccessCenterRuntime({ ...runtime, status: "stopped", pid: null, lastError: "" });
+    return true;
+  }
+
+  async terminateProcess(pid, child = null) {
+    if (!pid || !this.isPidAlive(pid)) return true;
     try {
-      process.kill(runtime.pid, "SIGTERM");
-      for (let attempt = 0; attempt < 12; attempt += 1) {
-        await delay(150);
-        if (!this.isPidAlive(runtime.pid)) break;
-      }
-      await this.store.saveAccessCenterRuntime({ ...runtime, status: "stopped", pid: null, lastError: "" });
+      if (child) child.kill("SIGTERM");
+      else this.signalProcess(pid, "SIGTERM");
     } catch (error) {
-      throw new Error(`无法停止上次遗留的访问中心进程：${error.message}`);
+      if (!this.isPidAlive(pid)) return true;
+      if (error && error.code === "EPERM") return false;
     }
+    const deadline = Date.now() + 3000;
+    while (Date.now() < deadline && this.isPidAlive(pid)) await delay(100);
+    if (this.isPidAlive(pid)) {
+      try {
+        if (child) child.kill("SIGKILL");
+        else this.signalProcess(pid, "SIGKILL");
+      } catch { /* process may require a higher-integrity session */ }
+      const forceDeadline = Date.now() + 500;
+      while (Date.now() < forceDeadline && this.isPidAlive(pid)) await delay(50);
+    }
+    return !this.isPidAlive(pid);
   }
 
   isPidAlive(pid) {
+    return this.pidAlive ? this.pidAlive(pid) : isPidAlive(pid, this.signalProcess);
+  }
+
+  async isOwnedAccessProcess(pid, runtimeValue = null) {
+    if (!Number.isInteger(Number(pid)) || !this.isPidAlive(pid)) return false;
+    if (this.frpcProcess && this.frpcProcess.pid === Number(pid)) return true;
+    const runtime = runtimeValue || await this.store.getAccessCenterRuntime();
+    if (runtime.ownerPid === process.pid && areSamePath(runtime.binaryPath, this.frpcBinaryPath)) return true;
+    if (process.platform !== "win32" && !this.processInspector) return false;
     try {
-      process.kill(pid, 0);
-      return true;
+      const info = this.processInspector
+        ? await this.processInspector(Number(pid))
+        : await this.inspectWindowsProcess(Number(pid));
+      if (!info) return false;
+      const processName = info.name || info.Name || "";
+      const processPath = info.path || info.Path || "";
+      const processStartTime = info.startTime || info.StartTime || "";
+      const expectedName = path.parse(this.frpcBinaryPath).name.toLowerCase();
+      if (String(processName).toLowerCase() !== expectedName) return false;
+      if (processPath && !areSamePath(processPath, this.frpcBinaryPath)) return false;
+      const expectedStart = Date.parse(runtime.lastStartedAt || "");
+      const actualStart = Date.parse(processStartTime);
+      return !Number.isFinite(expectedStart)
+        || !Number.isFinite(actualStart)
+        || Math.abs(expectedStart - actualStart) < 15_000;
     } catch {
       return false;
     }
   }
 
-  async isOwnedAccessProcess(pid) {
-    if (!Number.isInteger(Number(pid)) || !this.isPidAlive(pid)) return false;
-    if (process.platform !== "win32") return false;
-    const script = `$p = Get-CimInstance -ClassName Win32_Process -Filter \"ProcessId = ${Number(pid)}\" -ErrorAction SilentlyContinue; if ($p) { $p.CommandLine }`;
-    try {
-      const commandLine = await new Promise((resolve, reject) => {
-        const child = spawn("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
-          windowsHide: true,
-          stdio: ["ignore", "pipe", "ignore"],
-        });
-        let output = "";
-        child.stdout.setEncoding("utf8");
-        child.stdout.on("data", (chunk) => { output += chunk; });
-        child.once("error", reject);
-        child.once("close", (code) => code === 0 ? resolve(output.trim()) : reject(new Error("无法读取进程信息。")));
-      });
-      const command = String(commandLine).toLowerCase();
-      return command.includes(path.basename(this.frpcBinaryPath).toLowerCase())
-        && command.includes(this.store.getAccessCenterConfigPath().toLowerCase());
-    } catch {
-      return false;
-    }
+  async inspectWindowsProcess(pid) {
+    return inspectWindowsProcess(pid);
   }
 
   async startLocalServer(config) {
+    if (this.localServer) return;
     const app = createAccessCenterApp(this);
     this.localServer = await new Promise((resolve, reject) => {
       const server = app.listen(config.localPort, config.localHost, () => resolve(server));
@@ -321,43 +440,172 @@ class AccessCenterService {
     await new Promise((resolve) => server.close(resolve));
   }
 
+  async launchFrpc(config) {
+    const frpToken = await this.getFrpToken(config);
+    const configText = this.buildFrpcConfig(config, frpToken);
+    await fsp.writeFile(this.store.getAccessCenterConfigPath(), configText, "utf8");
+    try {
+      await this.startFrpc(config);
+      await delay(this.startupProbeMs);
+      if (!this.activePid || !this.isPidAlive(this.activePid)) {
+        throw new Error("访问中心 FRPC 未能保持运行，请检查服务端地址、Token 和端口权限。");
+      }
+      if (this.logger.info) await this.logger.info(`访问中心已启动：${config.publicUrl}`);
+    } finally {
+      await fsp.rm(this.store.getAccessCenterConfigPath(), { force: true });
+    }
+  }
+
   async startFrpc(config) {
-    const logStream = fs.createWriteStream(this.store.getAccessCenterLogPath(), { flags: "a" });
-    const child = spawn(this.frpcBinaryPath, ["-c", this.store.getAccessCenterConfigPath()], {
+    const logWriter = new RotatingLogWriter(this.store.getAccessCenterLogPath());
+    const child = this.spawnProcess(this.frpcBinaryPath, ["-c", this.store.getAccessCenterConfigPath()], {
       cwd: path.dirname(this.frpcBinaryPath),
       env: process.env,
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
     });
     this.frpcProcess = child;
-    child.stdout.on("data", (chunk) => logStream.write(this.redactLog(chunk.toString())));
-    child.stderr.on("data", (chunk) => logStream.write(this.redactLog(chunk.toString())));
-    child.once("error", async (error) => {
-      logStream.end();
+    if (child.stdout) child.stdout.on("data", (chunk) => logWriter.write(this.redactLog(chunk.toString())));
+    if (child.stderr) child.stderr.on("data", (chunk) => logWriter.write(this.redactLog(chunk.toString())));
+    let exitHandled = false;
+    let initializationTask = Promise.resolve();
+    const handleExit = async (error, code = null) => {
+      if (exitHandled) return;
+      exitHandled = true;
+      await initializationTask.catch(() => undefined);
+      await logWriter.end();
       if (this.frpcProcess !== child) return;
       this.frpcProcess = null;
-      await this.store.saveAccessCenterRuntime({ status: "error", pid: null, lastError: error.message });
-    });
-    child.once("close", async (code) => {
-      logStream.end();
-      if (this.frpcProcess !== child) return;
-      this.frpcProcess = null;
-      await this.store.saveAccessCenterRuntime({
-        status: code === 0 ? "stopped" : "error",
-        pid: null,
-        lastError: code === 0 ? "" : `访问中心 FRPC 已退出，退出码=${code}`,
-      });
+      this.activePid = null;
+      if (this.stableTimer) {
+        clearTimeout(this.stableTimer);
+        this.stableTimer = null;
+      }
+      if (this.desiredRunning) {
+        await this.scheduleRecovery(error ? error.message : `访问中心 FRPC 已退出，退出码=${code}`);
+      } else {
+        const runtime = await this.store.getAccessCenterRuntime();
+        await this.store.saveAccessCenterRuntime({
+          ...runtime,
+          status: "stopped",
+          pid: null,
+          ownerPid: null,
+          lastError: "",
+          recoveryPending: false,
+        });
+      }
+    };
+    child.once("error", (error) => { handleExit(error).catch(() => undefined); });
+    child.once("close", (code) => {
+      const error = code === 0 ? null : new Error(`访问中心 FRPC 已退出，退出码=${code}`);
+      handleExit(error, code).catch(() => undefined);
     });
     await new Promise((resolve, reject) => {
-      child.once("spawn", resolve);
+      let spawned = false;
+      child.once("spawn", () => {
+        spawned = true;
+        resolve();
+      });
       child.once("error", reject);
+      child.once("close", (code) => {
+        if (!spawned) reject(new Error(`访问中心 FRPC 在启动前退出，退出码=${code}`));
+      });
     });
-    await this.store.saveAccessCenterRuntime({
+    if (exitHandled || this.frpcProcess !== child) throw new Error("访问中心 FRPC 在启动过程中退出。");
+    this.activePid = child.pid;
+    initializationTask = this.store.saveAccessCenterRuntime({
       status: "running",
       pid: child.pid,
+      ownerPid: process.pid,
+      binaryPath: this.frpcBinaryPath,
       lastStartedAt: nowIso(),
       lastError: "",
+      recoveryPending: false,
+      outageSince: "",
+      nextRetryAt: "",
+      reconnectAttempt: 0,
     });
+    await initializationTask;
+    if (exitHandled || this.frpcProcess !== child) throw new Error("访问中心 FRPC 在启动过程中退出。");
+    this.markStable(child.pid);
+  }
+
+  async scheduleRecovery(reason) {
+    if (!this.desiredRunning || this.restartTimer) return;
+    if (!this.outageStartedAt) this.outageStartedAt = Date.now();
+    this.reconnectAttempt += 1;
+    const delayMs = this.restartDelays[Math.min(this.reconnectAttempt - 1, this.restartDelays.length - 1)];
+    const prolonged = Date.now() - this.outageStartedAt >= this.stableAfterMs;
+    const runtime = await this.store.getAccessCenterRuntime();
+    await this.store.saveAccessCenterRuntime({
+      ...runtime,
+      status: prolonged ? "error" : "reconnecting",
+      pid: null,
+      ownerPid: null,
+      lastError: reason,
+      recoveryPending: true,
+      outageSince: runtime.outageSince || new Date(this.outageStartedAt).toISOString(),
+      nextRetryAt: new Date(Date.now() + delayMs).toISOString(),
+      reconnectAttempt: this.reconnectAttempt,
+    });
+    if (this.reconnectAttempt === 1 && this.logger.warn) {
+      await this.logger.warn(`访问中心连接中断，${delayMs / 1000} 秒后自动恢复：${reason}`);
+    } else if (prolonged && !this.prolongedFailureLogged && this.logger.error) {
+      this.prolongedFailureLogged = true;
+      await this.logger.error(`访问中心已连续恢复失败超过 ${Math.round(this.stableAfterMs / 1000)} 秒：${reason}`);
+    }
+
+    this.restartTimer = setTimeout(async () => {
+      this.restartTimer = null;
+      if (!this.desiredRunning) return;
+      const config = await this.store.getAccessCenter();
+      if (!config.enabled) {
+        this.desiredRunning = false;
+        return;
+      }
+      try {
+        await this.start();
+      } catch (error) {
+        await this.scheduleRecovery(error.message);
+      }
+    }, delayMs);
+    if (typeof this.restartTimer.unref === "function") this.restartTimer.unref();
+  }
+
+  markStable(pid) {
+    if (this.stableTimer) clearTimeout(this.stableTimer);
+    this.stableTimer = setTimeout(() => {
+      if (this.activePid === pid && this.isPidAlive(pid)) {
+        this.reconnectAttempt = 0;
+        this.outageStartedAt = 0;
+        this.prolongedFailureLogged = false;
+      }
+    }, this.stableAfterMs);
+    if (typeof this.stableTimer.unref === "function") this.stableTimer.unref();
+  }
+
+  startMonitor() {
+    if (this.monitorTimer) return;
+    this.monitorTimer = setInterval(() => {
+      if (!this.desiredRunning) return;
+      if (this.activePid && this.isPidAlive(this.activePid)) return;
+      if (!this.launchTask && !this.restartTimer) {
+        this.scheduleRecovery("访问中心进程未运行。").catch(() => undefined);
+      }
+    }, this.monitorIntervalMs);
+    if (typeof this.monitorTimer.unref === "function") this.monitorTimer.unref();
+  }
+
+  stopMonitoring() {
+    if (this.monitorTimer) clearInterval(this.monitorTimer);
+    if (this.restartTimer) clearTimeout(this.restartTimer);
+    if (this.stableTimer) clearTimeout(this.stableTimer);
+    this.monitorTimer = null;
+    this.restartTimer = null;
+    this.stableTimer = null;
+    this.reconnectAttempt = 0;
+    this.outageStartedAt = 0;
+    this.prolongedFailureLogged = false;
   }
 
   redactLog(text) {
@@ -371,6 +619,7 @@ class AccessCenterService {
       `serverPort = ${config.serverPort}`,
       "auth.method = \"token\"",
       `auth.token = ${escapeToml(frpToken)}`,
+      "loginFailExit = false",
       "transport.tls.enable = true",
       "",
       "[[proxies]]",

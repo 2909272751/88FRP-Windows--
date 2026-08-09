@@ -42,7 +42,21 @@ async function createWebApp(options = {}) {
   const context = await createAppContext();
   const app = express();
   const publicDir = getPublicDir();
-  const scheduler = context.syncService.startAutoSyncScheduler();
+  const syncScheduler = context.syncService.startAutoSyncScheduler();
+  const scheduler = {
+    async start() {
+      context.processManager.startSupervisor();
+      await syncScheduler.start();
+    },
+    stop() {
+      syncScheduler.stop();
+      context.processManager.stopSupervisor();
+      context.accessCenterService.stopMonitoring();
+    },
+    tick() {
+      return syncScheduler.tick();
+    },
+  };
   let runtimeInitialized = false;
 
   const initializeRuntime = async () => {
@@ -103,6 +117,18 @@ async function createWebApp(options = {}) {
     return res.status(401).json({ success: false, message: "请先登录控制台。", data: null });
   };
   app.use("/api", asyncHandler(requireConsoleAuth));
+
+  app.post("/api/system/shutdown", asyncHandler(async (req, res) => {
+    if (!isDesktopRequest(req)) {
+      return res.status(403).json({ success: false, message: "仅 Windows 客户端可以停止后台核心。", data: null });
+    }
+    if (typeof options.requestShutdown !== "function") {
+      return res.status(503).json({ success: false, message: "当前运行方式不支持停止后台核心。", data: null });
+    }
+    const stopInstances = Boolean(req.body && req.body.stopInstances);
+    sendJson(res, { stopInstances }, "后台核心正在安全停止。");
+    setTimeout(() => options.requestShutdown({ stopInstances }), 50);
+  }));
 
   app.get("/api/instances", asyncHandler(async (_req, res) => {
     sendJson(res, await context.instanceService.list());
@@ -297,8 +323,12 @@ async function startWebServer(options = {}) {
   const lockPath = options.lockPath || path.join(getRuntimeRoot(), "web-backend.lock");
   const processLock = acquireProcessLock(lockPath);
   let bundle = null;
+  let requestedShutdown = null;
   try {
-    bundle = await createWebApp({ initializeRuntime: false });
+    bundle = await createWebApp({
+      initializeRuntime: false,
+      requestShutdown: (shutdownOptions) => requestedShutdown && requestedShutdown(shutdownOptions),
+    });
   } catch (error) {
     processLock.release();
     throw error;
@@ -321,20 +351,31 @@ async function startWebServer(options = {}) {
 
   console.log(`88frp web listening on http://${host}:${port}`);
 
-  async function shutdown() {
+  async function shutdown(shutdownOptions = {}) {
     if (shuttingDown) return;
     shuttingDown = true;
     scheduler.stop();
+    const stopInstances = Boolean(shutdownOptions.stopInstances);
     await context.logger.warn("web 服务准备停止。");
-    await context.accessCenterService.stop();
+    try {
+      await context.runtimeService.prepareForBackendShutdown({ resumeInstances: !stopInstances });
+    } catch (error) {
+      await context.logger.error(`实例停止清理未完全完成: ${error.message}`);
+    }
+    try {
+      await context.accessCenterService.stop();
+    } catch (error) {
+      await context.logger.error(`访问中心停止清理未完全完成: ${error.message}`);
+    }
     server.close(() => {
       processLock.release();
       process.exit(0);
     });
   }
 
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+  requestedShutdown = shutdown;
+  process.on("SIGINT", () => shutdown({ stopInstances: false }));
+  process.on("SIGTERM", () => shutdown({ stopInstances: false }));
 
   return {
     ...bundle,

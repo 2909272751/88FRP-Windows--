@@ -40,19 +40,16 @@ class RuntimeService {
 
   async restoreOnBoot() {
     const settings = await this.store.getSettings();
-    if (!settings.instanceAutoStartOnBoot) {
-      await this.logger.info("已跳过实例自动恢复。");
-      return [];
-    }
-
     const instances = await this.store.listInstances();
     const started = [];
     for (const instance of instances) {
-      if (!instance.autoStartEnabled || !instance.hasConfig) {
+      const runtime = await this.store.getRuntime(instance.id);
+      const resumeAfterBackendRestart = Boolean(runtime.resumeOnBackendStart);
+      const startAtBoot = settings.instanceAutoStartOnBoot && instance.autoStartEnabled;
+      if ((!resumeAfterBackendRestart && !startAtBoot) || !instance.hasConfig) {
         continue;
       }
 
-      const runtime = await this.store.getRuntime(instance.id);
       if (runtime.pid && this.processManager.checkPid(runtime.pid)) {
         continue;
       }
@@ -64,7 +61,14 @@ class RuntimeService {
         await this.logger.error(`自动恢复实例 ${instance.name} 失败: ${error.message}`);
       }
     }
+    if (!settings.instanceAutoStartOnBoot && !started.length) {
+      await this.logger.info("已跳过实例自动恢复。");
+    }
     return started;
+  }
+
+  async prepareForBackendShutdown({ resumeInstances = true } = {}) {
+    await this.processManager.stopAll({ resume: resumeInstances });
   }
 }
 

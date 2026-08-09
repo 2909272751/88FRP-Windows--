@@ -909,6 +909,8 @@ document.addEventListener("DOMContentLoaded", () => {
       stopped: "已停止",
       starting: "启动中",
       stopping: "停止中",
+      reconnecting: "重连中",
+      restarting: "恢复中",
       error: "异常",
     }[status] || "未知";
   }
