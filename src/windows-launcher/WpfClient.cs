@@ -47,6 +47,11 @@ internal static class Program
     {
         DpiSupport.Enable();
         bool backgroundStart = HasArg(args, "--background");
+        if (HasArg(args, "--uninstall"))
+        {
+            NativeClient.RunUninstall();
+            return;
+        }
         bool createdNew;
         Mutex mutex = new Mutex(true, "Global\\88FRP_Native_Client_Mutex", out createdNew);
         if (!createdNew)
@@ -80,7 +85,7 @@ internal static class Program
         File.WriteAllText(ServicePortsPath, new JavaScriptSerializer().Serialize(state), Encoding.UTF8);
     }
 
-    private static void LoadConsolePort()
+    internal static void LoadConsolePort()
     {
         try
         {
@@ -963,6 +968,15 @@ internal sealed class MainWindow : Window
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (msg == NativeClient.ExitWindowMessage)
+        {
+            exiting = true;
+            trayIcon.Visible = false;
+            client.StopBackend(true);
+            Close();
+            handled = true;
+            return IntPtr.Zero;
+        }
         if (msg == NativeClient.ShowWindowMessage)
         {
             ShowFromTray();
@@ -2145,6 +2159,7 @@ internal static class DpiSupport
 internal sealed class NativeClient
 {
     internal static readonly int ShowWindowMessage = RegisterWindowMessage("88FRP_SHOW_NATIVE_WINDOW");
+    internal static readonly int ExitWindowMessage = RegisterWindowMessage("88FRP_EXIT_NATIVE_WINDOW");
     private readonly JavaScriptSerializer serializer = new JavaScriptSerializer();
     private readonly object backendLifecycleLock = new object();
     private Process backendProcess;
@@ -2271,6 +2286,51 @@ internal sealed class NativeClient
         Thread.Sleep(700);
         StartBackend();
         WaitForBackend();
+    }
+
+    internal static void RunUninstall()
+    {
+        bool createdNew;
+        using (Mutex mutex = new Mutex(true, "Global\\88FRP_Native_Client_Mutex", out createdNew))
+        {
+            if (!createdNew)
+            {
+                // 已有桌面实例在运行：请其安全退出（它内部会停止后台核心及其 FRPC 子进程）。
+                PostMessage(new IntPtr(0xffff), ExitWindowMessage, IntPtr.Zero, IntPtr.Zero);
+                DateTime deadline = DateTime.Now.AddSeconds(25);
+                while (DateTime.Now < deadline)
+                {
+                    Thread.Sleep(200);
+                    try
+                    {
+                        if (mutex.WaitOne(0)) break;
+                    }
+                    catch (AbandonedMutexException) { break; }
+                }
+            }
+
+            // 移除自动启动项（Run 值 + 88FRP Background 计划任务）及遗留 88frp 计划任务。
+            DisableAutoStart();
+            RunHidden("schtasks.exe", "/Delete /TN \"88frp\" /F");
+
+            // 兜底安全停止后台核心及其管理的 FRPC 子进程。
+            SafeStopBackendForUninstall();
+        }
+    }
+
+    private static void SafeStopBackendForUninstall()
+    {
+        try
+        {
+            Directory.CreateDirectory(Program.AppDataDir);
+            Program.LoadConsolePort();
+            NativeClient helper = new NativeClient();
+            if (helper.IsBackendHealthy(1500))
+            {
+                helper.StopBackend(true);
+            }
+        }
+        catch { }
     }
 
     public bool IsBackendHealthy(int timeoutMs = 900)
