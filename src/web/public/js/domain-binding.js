@@ -182,6 +182,8 @@
     }
 
     if ($("domainAutoFollow")) $("domainAutoFollow").checked = cfg.autoFollow !== false;
+    const interval = $("domainCheckInterval");
+    if (interval && document.activeElement !== interval) interval.value = String(cfg.checkIntervalSeconds || 15);
     // 没授权时自动展开授权卡片（引导用户去授权）；
     // 已授权则收起，避免每次都把 Token 输入框摊在眼前。
     // 只在「状态首次到达」时决定一次，不覆盖用户的展开/收起操作。
@@ -296,6 +298,15 @@
 
     if ($("domainAutoFollow")) {
       $("domainAutoFollow").addEventListener("change", e => save({ autoFollow: e.target.checked }, e.target.checked ? "自动跟随已开启" : "自动跟随已暂停"));
+    }
+    if ($("btnSaveDomainInterval")) {
+      $("btnSaveDomainInterval").addEventListener("click", async () => {
+        const seconds = Number($("domainCheckInterval").value);
+        if (!Number.isInteger(seconds) || seconds < 5 || seconds > 3600) { toast("检查间隔应为 5–3600 秒。", true); return; }
+        $("btnSaveDomainInterval").disabled = true;
+        try { await save({ checkIntervalSeconds: seconds }, `已设为每 ${seconds} 秒检查`); }
+        finally { $("btnSaveDomainInterval").disabled = false; }
+      });
     }
     if ($("domainCanWrite")) {
       $("domainCanWrite").addEventListener("change", (e) => {

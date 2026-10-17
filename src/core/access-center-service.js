@@ -148,6 +148,7 @@ class AccessCenterService {
   constructor({
     store,
     tunnelService,
+    domainBindingService = null,
     credentialStore,
     logger,
     frpcBinaryPath,
@@ -162,6 +163,7 @@ class AccessCenterService {
   }) {
     this.store = store;
     this.tunnelService = tunnelService;
+    this.domainBindingService = domainBindingService;
     this.credentialStore = credentialStore;
     this.logger = logger;
     this.frpcBinaryPath = frpcBinaryPath;
@@ -651,10 +653,22 @@ class AccessCenterService {
         this.tunnelService.list(instance.id),
       ]);
       const serverAddr = parseFrpcServerAddr(configText);
+      // Read local binding settings only; public access must never query or write DNS.
+      let domainConfig = null;
+      try { domainConfig = this.domainBindingService?.read(instance.id); } catch { /* Retain direct links if binding settings are damaged. */ }
       for (const tunnel of tunnelData.tunnels) {
         const key = profileKey(instance.id, tunnel.name);
         const profile = config.linkProfiles[key] || {};
         const link = buildLink(tunnel, serverAddr, profile);
+        let domainLink = null;
+        if (domainConfig?.zone && ["tcp", "udp"].includes(String(tunnel.type).toLowerCase()) && tunnel.remotePort
+          && !domainConfig.skipTunnels.includes(tunnel.name)
+          && (!domainConfig.onlyTunnels.length || domainConfig.onlyTunnels.includes(tunnel.name))) {
+          try {
+            const host = normalizeHost(domainConfig.hostname === "@" ? domainConfig.zone : `${domainConfig.hostname}.${domainConfig.zone}`);
+            domainLink = buildLink(tunnel, host, { mode: profile.mode === "https" || profile.mode === "endpoint" ? profile.mode : "auto", path: profile.path });
+          } catch { /* Invalid domain must not hide a working direct link. */ }
+        }
         links.push({
           key,
           instanceId: instance.id,
@@ -675,6 +689,10 @@ class AccessCenterService {
             customUrl: profile.customUrl || "",
           },
           ...link,
+          domainUrl: domainLink?.url || "",
+          domainEndpoint: domainLink?.endpoint || "",
+          domainCanOpen: Boolean(domainLink?.canOpen),
+          domainHint: domainLink && !domainConfig.lastSyncAt ? "域名尚未同步，请先在客户端确认解析。" : "",
         });
       }
     }

@@ -87,7 +87,7 @@ try {
   [IO.Directory]::CreateDirectory($DataRoot) | Out-Null
   if ($Mode -eq 'Install') {
     $backupRoot = Join-Path ([IO.Path]::GetDirectoryName($DataRoot)) '88frp-backups'
-    $snapshot = Join-Path $backupRoot ('upgrade-3.2.2-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+    $snapshot = Join-Path $backupRoot ('upgrade-3.2.3-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
     [IO.Directory]::CreateDirectory($snapshot) | Out-Null
     $existingData = Join-Path $DataRoot 'data'
     if (Test-Path -LiteralPath $existingData) { Copy-Item -LiteralPath $existingData -Destination $snapshot -Recurse }

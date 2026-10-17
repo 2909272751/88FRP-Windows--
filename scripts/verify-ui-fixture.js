@@ -16,11 +16,20 @@ const path = require("node:path");
   const config = 'serverAddr = "192.0.2.10"\nserverPort = 7000\n' + names.map((name, i) =>
     `\n[[proxies]]\nname = "${name}"\ntype = "tcp"\nlocalIP = "127.0.0.1"\nlocalPort = ${i === 4 ? 22 : i === 5 ? 3389 : 8000 + i}\nremotePort = ${20000 + i}\n`).join("");
   await bundle.context.store.saveConfig(instance.id, config);
+  await bundle.context.store.saveTunnelSelection(instance.id, Object.fromEntries(names.map((name, i) => [name, i < 7])));
   bundle.context.domainBindingService.write(instance.id, { enabled: true, canWrite: false, autoFollow: true,
     zone: "example.com", encryptedToken: "fixture-only", lastSyncAt: new Date().toISOString() });
   await bundle.context.consoleAuthService.configure({ username: "88frp-test", password: "LocalFixtureOnly!" });
   await fs.writeFile(path.join(root, "native-client-first-run.flag"), "declined");
-  const server = bundle.app.listen(0, "127.0.0.1", () => console.log(JSON.stringify({ url: `http://127.0.0.1:${server.address().port}/`, root })));
-  const stop = () => server.close(async () => { bundle.scheduler.stop(); await fs.rm(root, { recursive: true, force: true }); process.exit(0); });
+  const { createAccessCenterApp } = require("../src/core/access-center-service");
+  const server = bundle.app.listen(0, "127.0.0.1");
+  const accessServer = createAccessCenterApp(bundle.context.accessCenterService).listen(0, "127.0.0.1");
+  await Promise.all([server, accessServer].map(server => new Promise(resolve => server.on("listening", resolve))));
+  console.log(JSON.stringify({ url: `http://127.0.0.1:${server.address().port}/`, accessUrl: `http://127.0.0.1:${accessServer.address().port}/access`, root }));
+  const stop = async () => {
+    bundle.scheduler.stop();
+    for (const current of [server, accessServer]) { current.closeAllConnections(); current.close(); }
+    await fs.rm(root, { recursive: true, force: true }); process.exit(0);
+  };
   process.on("SIGINT", stop); process.on("SIGTERM", stop);
 })().catch(error => { console.error(error.message); process.exit(1); });

@@ -48,6 +48,10 @@ test("域名开关立即持久化，接口不接受或返回凭据及账本；�
       body: JSON.stringify({ zone: "example.com", enabled: true, canWrite: false, autoFollow: false, encryptedToken: "must-ignore", recordIds: ["must-ignore"] }) })).json();
     assert.equal(saved.data.config.canWrite, false);
     assert.equal(saved.data.config.autoFollow, false);
+    assert.equal(saved.data.config.checkIntervalSeconds, 15);
+    const interval = await (await fetch(endpoint, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ checkIntervalSeconds: 5 }) })).json();
+    assert.equal(interval.data.config.checkIntervalSeconds, 5);
+    assert.equal(interval.data.config.autoFollow, false);
     assert.equal(saved.data.hasToken, false);
     assert.equal("encryptedToken" in saved.data, false);
     const sync = await (await fetch(`${endpoint}/sync`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).json();

@@ -9,6 +9,7 @@ const { EventEmitter } = require("node:events");
 const { AccessCenterService, buildLink, createAccessCenterApp } = require("../src/core/access-center-service");
 const { Store } = require("../src/core/store");
 const { TunnelService } = require("../src/core/tunnel-service");
+const { DomainBindingService } = require("../src/core/domain-binding-service");
 
 const credentialStore = {
   async protect(value) { return `protected:${Buffer.from(String(value), "utf8").toString("base64")}`; },
@@ -84,16 +85,19 @@ async function withAccessCenter(run) {
   await store.saveTunnelSelection(instance.id, { web_01: true });
   await store.saveTunnelLabels(instance.id, { web_01: { displayName: "公司 NAS" } });
   const tunnelService = new TunnelService({ store });
+  const domainBindingService = new DomainBindingService({ store, tunnelService, instanceService: { list: () => store.listInstances() }, credentialStore,
+    fetchImpl: () => { throw new Error("Public links must not access Cloudflare"); } });
   const service = new AccessCenterService({
     store,
     tunnelService,
+    domainBindingService,
     credentialStore,
     logger: { info: async () => {}, warn: async () => {}, error: async () => {} },
     frpcBinaryPath: path.join(dataDir, "missing-frpc"),
   });
 
   try {
-    await run({ instance, service, store });
+    await run({ instance, service, store, domainBindingService });
   } finally {
     await service.stop();
     await fs.rm(dataDir, { recursive: true, force: true });
@@ -121,6 +125,46 @@ test("访问中心根据已同步备注和实例配置生成浏览器链接", as
     assert.equal(status.configured, true);
     assert.equal(Object.prototype.hasOwnProperty.call(status, "encryptedFrpToken"), false);
     assert.equal(Object.prototype.hasOwnProperty.call(status, "encryptedAccessKey"), false);
+  });
+});
+
+test("访问中心同时提供域名与节点地址，实时跟随绑定设置并保留自定义链接且不访问 Cloudflare", async () => {
+  await withAccessCenter(async ({ instance, service, domainBindingService }) => {
+    domainBindingService.configure(instance.id, { zone: "example.com", hostname: "nas", canWrite: false, autoFollow: false });
+    domainBindingService.write(instance.id, { encryptedToken: "private-test-token", lastSyncAt: "2026-10-17T00:00:00Z" });
+    let [link] = await service.listLinks();
+    assert.equal(link.url, "http://edge.example.test:41001");
+    assert.equal(link.domainUrl, "http://nas.example.com:41001");
+    assert.equal(link.domainCanOpen, true);
+    assert.equal(JSON.stringify(link).includes("private-test-token"), false);
+    await service.updateLinkProfile(link.key, { mode: "custom", customUrl: "https://custom.example.test/home", path: "/login" });
+    domainBindingService.configure(instance.id, { zone: "example.net", hostname: "@", enabled: false });
+    [link] = await service.listLinks();
+    assert.equal(link.url, "https://custom.example.test/home");
+    assert.equal(link.domainUrl, "http://example.net:41001/login");
+    domainBindingService.configure(instance.id, { skipTunnels: ["web_01"] });
+    [link] = await service.listLinks();
+    assert.equal(link.domainUrl, "");
+    assert.equal(link.url, "https://custom.example.test/home");
+  });
+});
+
+test("访问中心域名不把 UDP 或 Visitor 伪造成网页，损坏域名配置不影响直连", async () => {
+  await withAccessCenter(async ({ instance, service, store, domainBindingService }) => {
+    const config = await store.readConfig(instance.id);
+    await store.saveConfig(instance.id, config + '\n[[proxies]]\nname="udp_01"\ntype="udp"\nlocalPort=123\nremotePort=41002\n\n[[proxies]]\nname="visitor_01"\ntype="stcp"\nlocalPort=124\nremotePort=41003\n');
+    domainBindingService.configure(instance.id, { zone: "example.com" });
+    const links = await service.listLinks();
+    const udp = links.find(x => x.tunnelName === "udp_01");
+    const visitor = links.find(x => x.tunnelName === "visitor_01");
+    assert.equal(udp.domainEndpoint, "example.com:41002");
+    assert.equal(udp.domainUrl, "");
+    assert.equal(udp.domainCanOpen, false);
+    assert.equal(visitor.domainEndpoint, "");
+    await fs.writeFile(domainBindingService.configPath(instance.id), '{broken');
+    const fallback = (await service.listLinks()).find(x => x.tunnelName === "web_01");
+    assert.equal(fallback.domainUrl, "");
+    assert.equal(fallback.url, "http://edge.example.test:41001");
   });
 });
 

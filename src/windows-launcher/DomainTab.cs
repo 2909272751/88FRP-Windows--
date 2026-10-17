@@ -37,6 +37,8 @@ using System.Windows.Media;
         private CheckBox domainEnabledCheck;
         private CheckBox domainCanWriteCheck;
         private CheckBox domainAutoFollowCheck;
+        private TextBox domainCheckIntervalInput;
+        private Button domainCheckIntervalButton;
         private TextBlock domainAutoStatus;
         private bool renderingDomain;
         private bool loadingDomain;
@@ -261,7 +263,24 @@ using System.Windows.Media;
             domainAutoFollowCheck.Checked += delegate { DomainSaveToggle("autoFollow", true); };
             domainAutoFollowCheck.Unchecked += delegate { DomainSaveToggle("autoFollow", false); };
             panel.Children.Add(domainAutoFollowCheck);
-            panel.Children.Add(new TextBlock { Text = "每 60 秒检查；网络恢复后自动重试，暂停后仍可手动同步。", FontSize = 12,
+            panel.Children.Add(new TextBlock { Text = "先检查节点 IP，变化后才核对解析；失败自动重试，暂停后仍可手动同步。", FontSize = 12,
+                Foreground = MutedBrush, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(20, 0, 0, 8) });
+            StackPanel intervalRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(20, 0, 0, 8) };
+            intervalRow.Children.Add(new TextBlock { Text = "IP 检查间隔", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) });
+            domainCheckIntervalInput = new TextBox { Text = "15", Width = 70, Height = 34 };
+            intervalRow.Children.Add(domainCheckIntervalInput);
+            intervalRow.Children.Add(new TextBlock { Text = "秒", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 12, 0) });
+            domainCheckIntervalButton = OutlineButton("应用", AccentTextBrush);
+            domainCheckIntervalButton.Click += delegate {
+                int seconds;
+                if (!Int32.TryParse(domainCheckIntervalInput.Text.Trim(), out seconds) || seconds < 5 || seconds > 3600) {
+                    domainPlanResult.Text = "检查间隔应为 5–3600 秒。"; return;
+                }
+                DomainSaveToggle("checkIntervalSeconds", seconds);
+            };
+            intervalRow.Children.Add(domainCheckIntervalButton);
+            panel.Children.Add(intervalRow);
+            panel.Children.Add(new TextBlock { Text = "默认 15 秒，最短 5 秒；解析更新后仍受 DNS 缓存影响。", FontSize = 12,
                 Foreground = MutedBrush, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(20, 0, 0, 18) });
 
             domainCanWriteCheck = new CheckBox
@@ -410,6 +429,7 @@ using System.Windows.Media;
                 domainEnabledCheck.IsChecked = enabled;
                 domainCanWriteCheck.IsChecked = canWrite;
                 domainAutoFollowCheck.IsChecked = DomainBool(config, "autoFollow", true);
+                if (!domainCheckIntervalInput.IsKeyboardFocusWithin) domainCheckIntervalInput.Text = DomainStr(config, "checkIntervalSeconds");
             } finally { renderingDomain = false; }
             domainAutoStatus.Text = DomainStr(data, "autoStatus") + (DomainStr(data, "lastError") == "" ? "" : " · " + DomainStr(data, "lastError"));
             domainAutoStatus.Foreground = DomainStr(data, "lastError") == "" ? MutedBrush : DangerBrush;
@@ -581,17 +601,19 @@ using System.Windows.Media;
 
         /* ================================================================ 操作 */
 
-        private async void DomainSaveToggle(string key, bool value)
+        private async void DomainSaveToggle(string key, object value)
         {
             if (renderingDomain || string.IsNullOrEmpty(currentInstanceId)) return;
             string id = currentInstanceId;
             domainEnabledCheck.IsEnabled = domainCanWriteCheck.IsEnabled = domainAutoFollowCheck.IsEnabled = false;
+            domainCheckIntervalButton.IsEnabled = false;
             try {
                 var payload = new Dictionary<string, object>(); payload[key] = value;
                 await Task.Run(() => client.PutDict("/api/instances/" + id + "/domain-binding", payload));
             } catch (Exception ex) { domainPlanResult.Text = ex.Message; }
             finally {
                 domainEnabledCheck.IsEnabled = domainCanWriteCheck.IsEnabled = domainAutoFollowCheck.IsEnabled = true;
+                domainCheckIntervalButton.IsEnabled = true;
                 LoadDomainBinding();
             }
         }

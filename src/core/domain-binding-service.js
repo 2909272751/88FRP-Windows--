@@ -39,10 +39,11 @@ const DEFAULT_CONFIG = {
   encryptedToken: "",
   canWrite: false,
   autoFollow: true,
+  checkIntervalSeconds: 15,
   ttl: 60,
   // 记录指向的「根」域名。@ 表示域名本身。
   hostname: "@",
-  // 只发布这些隧道；留空表示「当前启用的全部」
+  // 只发布这些隧道；留空表示全部隧道（包含未启用）。
   onlyTunnels: [],
   skipTunnels: [],
   // 上次同步结果（账本）
@@ -86,7 +87,10 @@ class DomainBindingService {
     } catch (error) {
       if (error.code !== "ENOENT") throw new Error("域名配置无法读取，已停止写入。请检查配置文件或从备份恢复。");
     }
-    return { ...DEFAULT_CONFIG, ...raw };
+    const config = { ...DEFAULT_CONFIG, ...raw };
+    if (!Number.isInteger(config.checkIntervalSeconds) || config.checkIntervalSeconds < 5 || config.checkIntervalSeconds > 3600)
+      throw new Error("域名检查间隔无效，已停止自动写入。请设置为 5–3600 秒。");
+    return config;
   }
 
   write(instanceId, patch) {
@@ -106,6 +110,11 @@ class DomainBindingService {
       next[key] = patch[key];
     }
     if ("zone" in patch) next.zone = normalizeZone(patch.zone);
+    if ("checkIntervalSeconds" in patch) {
+      next.checkIntervalSeconds = Number(patch.checkIntervalSeconds);
+      if (!Number.isInteger(next.checkIntervalSeconds) || next.checkIntervalSeconds < 5 || next.checkIntervalSeconds > 3600)
+        throw new Error("检查间隔应为 5–3600 秒。");
+    }
     if ("hostname" in patch) {
       next.hostname = String(patch.hostname).trim().toLowerCase();
       if (next.hostname !== "@" && !/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/.test(next.hostname)) throw new Error("主机名格式不正确。");
@@ -122,7 +131,10 @@ class DomainBindingService {
     const cfg = this.read(instanceId);
     if (next.zone && next.zone !== cfg.zone && cfg.recordIds.length && !cfg.recordZone) next.recordZone = cfg.zone;
     this.write(instanceId, next);
-    this.automatic.delete(instanceId); // 设置修改后取消失败退避，下一轮按最新设置检查。
+    const automatic = this.automatic.get(instanceId);
+    if (automatic && Object.keys(next).every(key => key === "checkIntervalSeconds"))
+      this.automatic.set(instanceId, { ...automatic, failures: 0, nextAt: 0 });
+    else this.automatic.delete(instanceId); // 绑定设置修改后重新核对；仅调间隔保留已确认的 IP。
   }
 
   /**
@@ -322,6 +334,7 @@ class DomainBindingService {
         zone: cfg.zone,
         canWrite: cfg.canWrite,
         autoFollow: cfg.autoFollow,
+        checkIntervalSeconds: cfg.checkIntervalSeconds,
         ttl: cfg.ttl,
         hostname: cfg.hostname,
       },
@@ -332,7 +345,7 @@ class DomainBindingService {
       lastError: cfg.lastError || "",
       autoStatus: !cfg.enabled ? "已停用" : !cfg.canWrite ? "本机只读，不修改解析"
         : !cfg.autoFollow ? "自动跟随已暂停，可手动同步" : !cfg.encryptedToken ? "等待 Cloudflare 授权"
-        : cfg.lastError ? "同步失败，后台将自动重试" : "自动跟随中 · 每 60 秒检查",
+        : cfg.lastError ? "同步失败，后台将自动重试" : `自动跟随中 · 每 ${cfg.checkIntervalSeconds} 秒检查`,
       nextCheckAt: this.automatic.get(instanceId)?.nextAt || null,
       record: desired ? desired.record : null,
       links: desired ? desired.links : [],
@@ -448,7 +461,7 @@ class DomainBindingService {
     }
   }
 
-  startAutoFollow({ intervalMs = 60000 } = {}) {
+  startAutoFollow({ intervalMs = 1000, now = () => Date.now() } = {}) {
     let stopped = true, timer = null, running = null;
     const tick = () => {
       if (stopped) return Promise.resolve();
@@ -457,21 +470,33 @@ class DomainBindingService {
         for (const instance of await this.instanceService.list()) {
           if (stopped) break;
           try {
-            const cfg = this.read(instance.id); // 每轮重读三个开关。
-            if (this.blocked(cfg, true) || !cfg.encryptedToken || !cfg.zone) continue;
             const state = this.automatic.get(instance.id) || { failures: 0, nextAt: 0 };
-            if (Date.now() < state.nextAt) continue;
+            if (now() < state.nextAt) continue;
+            const cfg = this.read(instance.id); // 每次实际检查重读三个开关；界面保存设置会重置等待。
+            if (this.blocked(cfg, true) || !cfg.encryptedToken || !cfg.zone) continue;
             try {
+              const desired = await this.buildDesired(instance.id);
+              const targetFingerprint = this.fingerprint(cfg) + JSON.stringify(desired.record);
+              if (state.targetFingerprint === targetFingerprint) {
+                this.automatic.set(instance.id, { ...state, failures: 0, nextAt: now() + cfg.checkIntervalSeconds * 1000 });
+                this.write(instance.id, { lastCheckAt: new Date(now()).toISOString(), lastError: "" });
+                continue;
+              }
               const result = await this.sync(instance.id, { automatic: true, shouldContinue: () => !stopped });
               if (result.action === "conflict") throw new Error(result.reason);
-              this.automatic.set(instance.id, { failures: 0, nextAt: Date.now() + intervalMs });
+              if (["paused", "readonly", "disabled"].includes(result.action)) continue;
+              this.automatic.set(instance.id, { failures: 0, targetFingerprint, nextAt: now() + this.read(instance.id).checkIntervalSeconds * 1000 });
             } catch (error) {
               const failures = state.failures + 1;
-              this.automatic.set(instance.id, { failures, nextAt: Date.now() + Math.min(intervalMs * 2 ** Math.min(failures, 4), 900000) });
+              const retryMs = Math.min(Math.max(30000, cfg.checkIntervalSeconds * 1000) * 2 ** Math.min(failures - 1, 5), 900000);
+              this.automatic.set(instance.id, { ...state, failures, nextAt: now() + retryMs });
               this.write(instance.id, { lastCheckAt: new Date().toISOString(), lastError: error.message });
               await this.logger?.warn(`域名自动跟随失败 (${instance.id}): ${error.message}`);
             }
-          } catch (error) { await this.logger?.warn(`域名配置检查失败 (${instance.id}): ${error.message}`); }
+          } catch (error) {
+            this.automatic.set(instance.id, { failures: 1, nextAt: now() + 30000 });
+            await this.logger?.warn(`域名配置检查失败 (${instance.id}): ${error.message}`);
+          }
         }
       })().catch(async error => { await this.logger?.warn(`域名后台检查失败: ${error.message}`); }).finally(() => { running = null; });
       return running;

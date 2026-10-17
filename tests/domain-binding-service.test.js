@@ -148,3 +148,51 @@ test("授权验证仅 GET；配置接口拒绝非法类型且不接受凭据和�
   assert.equal(s.service.read("one").encryptedToken, "secret");
   assert.deepEqual(s.service.read("one").recordIds, []);
 });
+
+test("自动跟随仅在 IP 或绑定目标变化后访问 Cloudflare；检查间隔实时生效，手动同步始终核对", async t => {
+  const s = setup(t);
+  let time = 100000;
+  const scheduler = s.service.startAutoFollow({ intervalMs: 1000000, now: () => time });
+  t.after(() => scheduler.stop());
+  assert.equal(s.service.read("one").checkIntervalSeconds, 15);
+  scheduler.start(); await scheduler.tick();
+  assert.equal(s.writes().length, 1);
+  const initialRequests = s.requests.length;
+  time += 15000; await scheduler.tick();
+  assert.equal(s.requests.length, initialRequests, "Unchanged IP must not call Cloudflare");
+  fs.writeFileSync(path.join(s.dir, "runtime-frpc.toml"), 'serverAddr = "192.0.2.20"');
+  time += 15000; await scheduler.tick();
+  assert.equal(s.writes().length, 2);
+  assert.equal(s.records[0].content, "192.0.2.20");
+  const changedRequests = s.requests.length;
+  s.service.configure("one", { checkIntervalSeconds: 5 });
+  await scheduler.tick();
+  assert.equal(s.requests.length, changedRequests, "Changing interval must not reconcile unchanged DNS");
+  fs.writeFileSync(path.join(s.dir, "runtime-frpc.toml"), 'serverAddr = "192.0.2.30"');
+  time += 4999; await scheduler.tick();
+  assert.equal(s.requests.length, changedRequests);
+  time++; await scheduler.tick();
+  assert.equal(s.records[0].content, "192.0.2.30");
+  const beforeManual = s.requests.length;
+  await s.service.sync("one");
+  assert.ok(s.requests.length > beforeManual);
+  const beforePause = s.requests.length;
+  s.service.configure("one", { autoFollow: false });
+  time += 10000; await scheduler.tick();
+  assert.equal(s.requests.length, beforePause);
+});
+
+test("检查间隔校验及快速模式的失败退避", async t => {
+  const s = setup(t, { checkIntervalSeconds: 5 });
+  for (const value of [0, 4, 3601, 5.5, "bad"]) assert.throws(() => s.service.configure("one", { checkIntervalSeconds: value }), /检查间隔/);
+  let time = 100000;
+  const scheduler = s.service.startAutoFollow({ intervalMs: 1000000, now: () => time });
+  t.after(() => scheduler.stop());
+  s.service.fetchImpl = async () => { throw new Error("offline"); };
+  scheduler.start(); await scheduler.tick();
+  assert.equal(s.service.automatic.get("one").nextAt, time + 30000);
+  time += 5000; await scheduler.tick();
+  assert.equal(s.service.automatic.get("one").failures, 1);
+  time += 25000; await scheduler.tick();
+  assert.equal(s.service.automatic.get("one").nextAt, time + 60000);
+});

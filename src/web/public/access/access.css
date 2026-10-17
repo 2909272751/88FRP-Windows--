@@ -253,7 +253,7 @@ select:focus { border-color: #2168d9; box-shadow: 0 0 0 3px rgba(33, 104, 217, 0
 .link-card {
   display: grid;
   min-height: 170px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   padding: 20px;
   border: 1px solid #cfdae8;
@@ -279,7 +279,11 @@ select:focus { border-color: #2168d9; box-shadow: 0 0 0 3px rgba(33, 104, 217, 0
 
 .link-meta { margin: 8px 0 0; color: #68778c; font-size: 0.84rem; overflow-wrap: anywhere; }
 
-.address-box { margin-top: 16px; }
+.address-box { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px; margin-top:16px; }
+.address-copy { min-width:0; }
+.address-actions { display:flex; gap:4px; align-items:center; }
+.address-actions .icon-button { width:32px; height:32px; border-color:#d8e2ee; background:#fff; }
+.address-box+.address-box { padding-top:12px; border-top:1px solid #e2e8f0; }
 
 .address-label { display: block; margin-bottom: 4px; color: #7c899b; font-size: 0.75rem; font-weight: 700; }
 

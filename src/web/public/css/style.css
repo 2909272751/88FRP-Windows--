@@ -218,6 +218,10 @@ a { color:var(--primary-ink); }
 .domain-link-actions { display:flex; flex-shrink:0; align-items:center; gap:8px; }
 .domain-kind-off { color:var(--warning); }
 .domain-empty { color:var(--text-secondary); padding:24px 18px; }
+.domain-interval-row { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:16px 0; border-bottom:1px solid var(--outline); flex-wrap:wrap; }
+.domain-interval-input { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.domain-interval-input input { width:78px; min-height:34px; padding:6px 8px; border:1px solid var(--outline); border-radius:6px; color:var(--text); background:var(--surface); font:inherit; }
+.domain-interval-input>span { color:var(--text-secondary); font-size:12px; }
 /* Empty, loading and modal states */
 .empty-state,.panel-status,.tunnels-empty { display:flex; align-items:center; justify-content:center; flex:1; min-height:240px; padding:24px; text-align:center; color:var(--text-secondary); }
 .empty-state { flex-direction:column; gap:12px; }

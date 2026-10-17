@@ -79,7 +79,7 @@
   function visibleLinks() {
     const search = elements.linkSearch.value.trim().toLocaleLowerCase();
     if (!search) return state.links;
-    return state.links.filter((link) => [link.name, link.tunnelName, link.instanceName, link.group, link.endpoint, link.url, link.localPort, link.remotePort]
+    return state.links.filter((link) => [link.name, link.tunnelName, link.instanceName, link.group, link.endpoint, link.url, link.domainUrl, link.domainEndpoint, link.localPort, link.remotePort]
       .join(" ").toLocaleLowerCase().includes(search));
   }
 
@@ -212,6 +212,29 @@
     }
   }
 
+  function createAddressRow(link, label) {
+    const address = document.createElement("div");
+    address.className = "address-box";
+    const copy = document.createElement("div"); copy.className = "address-copy";
+    const addressLabel = document.createElement("span");
+    addressLabel.className = "address-label"; addressLabel.textContent = label;
+    const canOpen = Boolean(link.enabled && link.canOpen && link.url);
+    const addressValue = document.createElement(canOpen ? "a" : "div");
+    addressValue.className = `address-value${canOpen ? " address-link" : " endpoint-value"}`;
+    addressValue.textContent = link.url || link.endpoint || "当前没有可用地址";
+    if (canOpen) {
+      addressValue.href = link.url;
+      addressValue.target = "_blank";
+      addressValue.rel = "noopener noreferrer";
+      addressValue.title = "在浏览器新标签页打开";
+    }
+    copy.append(addressLabel, addressValue);
+    const actions = document.createElement("div"); actions.className = "address-actions";
+    actions.appendChild(createIconButton("icon-copy", `复制${label}：${link.name}`, () => copyText(link.url || link.endpoint, `${label}已复制。`), !(link.url || link.endpoint)));
+    actions.appendChild(createIconButton("icon-external-link", `打开${label}：${link.name}`, () => window.open(link.url, "_blank", "noopener,noreferrer"), !canOpen));
+    address.append(copy, actions);
+    return address;
+  }
   function createLinkCard(link) {
     const card = document.createElement("article");
     card.className = `link-card${link.enabled ? "" : " is-disabled"}${link.canOpen || link.endpoint ? "" : " is-unavailable"}`;
@@ -229,22 +252,14 @@
     const meta = document.createElement("p");
     meta.className = "link-meta";
     meta.textContent = `${link.instanceName || "未命名实例"} · 本地 ${link.localPort || "-"} · 远程 ${link.remotePort || "-"}`;
-    const address = document.createElement("div");
-    address.className = "address-box";
-    const addressLabel = document.createElement("span");
-    addressLabel.className = "address-label";
-    addressLabel.textContent = link.url ? "访问链接" : "连接地址";
-    const addressValue = document.createElement(link.url ? "a" : "div");
-    addressValue.className = `address-value${link.url ? " address-link" : " endpoint-value"}`;
-    addressValue.textContent = link.url || link.endpoint || "当前没有可用地址";
-    if (link.url) {
-      addressValue.href = link.url;
-      addressValue.target = "_blank";
-      addressValue.rel = "noopener noreferrer";
-      addressValue.title = "在浏览器新标签页打开";
+    main.append(header, meta);
+    if (link.domainUrl || link.domainEndpoint) {
+      main.appendChild(createAddressRow({ ...link, url: link.domainUrl, endpoint: link.domainEndpoint, canOpen: link.domainCanOpen }, link.domainUrl ? "域名链接" : "域名地址"));
+      if (link.domainHint) {
+        const hint = document.createElement("p"); hint.className = "link-hint"; hint.textContent = link.domainHint; main.appendChild(hint);
+      }
     }
-    address.append(addressLabel, addressValue);
-    main.append(header, meta, address);
+    main.appendChild(createAddressRow(link, link.profile?.customUrl ? "自定义链接" : "节点直连"));
     if (link.hint) {
       const hint = document.createElement("p");
       hint.className = "link-hint";
@@ -256,11 +271,7 @@
     status.innerHTML = `<span class="status-dot"></span><span>${link.enabled ? "已启用" : "未启用"}</span>`;
     main.appendChild(status);
 
-    const actions = document.createElement("div");
-    actions.className = "link-card-actions";
-    actions.appendChild(createIconButton("icon-copy", "复制地址", () => copyText(link.url || link.endpoint, "地址已复制。"), !(link.url || link.endpoint)));
-    actions.appendChild(createIconButton("icon-external-link", "在新标签页打开", () => window.open(link.url, "_blank", "noopener,noreferrer"), !link.enabled || !link.canOpen));
-    card.append(main, actions);
+    card.append(main);
     return card;
   }
 

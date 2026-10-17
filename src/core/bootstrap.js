@@ -58,13 +58,6 @@ async function createAppContext(options = {}) {
     logger,
   });
 
-  const accessCenterService = new AccessCenterService({
-    store,
-    tunnelService,
-    credentialStore,
-    logger,
-    frpcBinaryPath,
-  });
   const consoleAuthService = new ConsoleAuthService({ store, credentialStore });
   const domainBindingService = new DomainBindingService({
     store,
@@ -72,6 +65,9 @@ async function createAppContext(options = {}) {
     tunnelService,
     credentialStore,
     logger,
+  });
+  const accessCenterService = new AccessCenterService({
+    store, tunnelService, credentialStore, logger, frpcBinaryPath, domainBindingService,
   });
 
   return {

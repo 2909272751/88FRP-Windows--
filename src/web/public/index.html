@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f6f8fb">
   <title>88FRP 控制台</title>
   <link rel="stylesheet" href="/css/lucide.css">
-  <link rel="stylesheet" href="/css/style.css?v=3.2.2">
+  <link rel="stylesheet" href="/css/style.css?v=3.2.3">
 </head>
 <body>
   <div class="app-backdrop"></div>
@@ -47,7 +47,7 @@
           <i class="icon-menu" aria-hidden="true"></i>
         </button>
         <div class="top-app-bar-title">
-          <span class="eyebrow">88FRP 控制台 · v3.2.2</span>
+          <span class="eyebrow">88FRP 控制台 · v3.2.3</span>
           <strong id="topInstanceName">选择实例</strong>
         </div>
         <div class="top-app-bar-actions">
@@ -296,9 +296,14 @@
               </label>
 
               <label class="switch-row" for="domainAutoFollow">
-                <span class="switch-copy"><strong>自动跟随节点 IP</strong><span>每 60 秒检查；网络恢复后自动重试，也可暂停后手动同步</span></span>
+                <span class="switch-copy"><strong>自动跟随节点 IP</strong><span>先检查节点 IP，变化后才核对解析；暂停后仍可手动同步</span></span>
                 <span class="material-switch"><input type="checkbox" id="domainAutoFollow"><span class="switch-track"><span class="switch-thumb"></span></span></span>
               </label>
+
+              <div class="domain-interval-row">
+                <label class="switch-copy" for="domainCheckInterval"><strong>检查间隔</strong><span>默认 15 秒，最短 5 秒；DNS 缓存仍可能延迟生效</span></label>
+                <div class="domain-interval-input"><input type="number" id="domainCheckInterval" min="5" max="3600" step="1" value="15" aria-label="域名检查间隔（秒）"><span>秒</span><button class="tonal-button" id="btnSaveDomainInterval" type="button">应用</button></div>
+              </div>
 
               <label class="switch-row" for="domainCanWrite">
                 <span class="switch-copy">
