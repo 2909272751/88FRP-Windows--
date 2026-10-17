@@ -72,13 +72,14 @@ Write-Host "Compiling native client..."
 & $Csc $argList.ToArray()
 if ($LASTEXITCODE -ne 0) { throw "Native client compilation failed." }
 
+Copy-Item -Force (Join-Path $ProjectRoot "scripts\windows-upgrade.ps1") (Join-Path $PublishDir "windows-upgrade.ps1")
 Copy-Item -Force (Join-Path $ProjectRoot "scripts\configure-startup.ps1") (Join-Path $PublishDir "configure-startup.ps1")
 Copy-Item -Force $BackendExe (Join-Path $PublishDir "88frp-web.exe")
 Copy-Item -Force (Join-Path $ProjectRoot "assets\88frp-logo.png") (Join-Path $PublishDir "88frp-logo.png")
 Copy-Item -Force $IconPath (Join-Path $PublishDir "88frp-logo.ico")
 
 $Readme = @(
-  "88FRP Windows 3.2.3",
+  "88FRP Windows 3.2.4",
   "",
   "使用方法：",
   "1. 双击 88FRP.exe 打开原生桌面客户端。",

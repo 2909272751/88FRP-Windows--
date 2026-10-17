@@ -45,7 +45,10 @@ class WindowsCredentialStore {
     if (!isWindows()) {
       throw new Error("88FRP 账号加密仅支持 Windows 桌面端。");
     }
-    if (value.startsWith("machine:") || rawDpapi) {
+    // Early Windows service builds saved raw DPAPI base64 without a prefix,
+    // including account, access-center and console-auth credentials.
+    const legacyRawDpapi = /^AQAAANCMnd8BFdERjHoAwE\/Cl\+s/.test(value);
+    if (value.startsWith("machine:") || rawDpapi || legacyRawDpapi) {
       return runPowerShell("$ErrorActionPreference='Stop'; Add-Type -AssemblyName System.Security; $e=[Convert]::FromBase64String([Console]::In.ReadToEnd()); [Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect($e,$null,'"
         + (value.startsWith("machine:") ? "LocalMachine" : "CurrentUser") + "'))", value.replace(/^machine:/, ""));
     }

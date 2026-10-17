@@ -4,6 +4,15 @@ const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 const { WindowsCredentialStore } = require("../src/core/windows-credential-store");
 
+test("旧 Windows 服务的无前缀 DPAPI 凭据能直接读取，不误走 SecureString 格式", { skip: process.platform !== "win32" }, async () => {
+  const value = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `
+    $ErrorActionPreference='Stop'
+    Add-Type -AssemblyName System.Security
+    [Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes('legacy-raw-fixture'),$null,'LocalMachine'))
+  `], { encoding: "utf8", windowsHide: true, timeout: 15000 }).trim();
+  assert.equal(await new WindowsCredentialStore().unprotect(value), "legacy-raw-fixture");
+});
+
 test("升级预检通过保存端口请求正常退出，并保留隧道恢复状态", { skip: process.platform !== "win32" }, () => {
   const output = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `
     $ErrorActionPreference='Stop'
@@ -55,7 +64,9 @@ test("Windows 旧账号和旧域名凭据可迁移为 SYSTEM 可读的本机 DPA
     $account = [pscustomobject]@{ encryptedPassword = (ConvertFrom-SecureString $secure); username = 'keep'; enabled = $false }
     $raw = [Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes('domain-test'),$null,'CurrentUser'))
     $domain = [pscustomobject]@{ encryptedToken = $raw; canWrite = $false; recordIds = @('old') }
+    $legacyService = [pscustomobject]@{ encryptedFrpToken = [Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes('legacy-service-test'),$null,'LocalMachine')); enabled=$true }
     Convert-Credentials $account $false
+    Convert-Credentials $legacyService $false
     Convert-Credentials $domain $true
     $first = $domain.encryptedToken
     Convert-Credentials $domain $true
@@ -68,7 +79,7 @@ test("Windows 旧账号和旧域名凭据可迁移为 SYSTEM 可读的本机 DPA
     } finally {
       foreach($item in @($file,($file+'.previous'),($file+'.new'))) { if([IO.File]::Exists($item)) { [IO.File]::Delete($item) } }
     }
-    @{ account = $account; domain = $domain; idempotent = ($first -eq $domain.encryptedToken) } | ConvertTo-Json -Depth 8 -Compress
+    @{ account = $account; domain = $domain; legacyService=$legacyService; idempotent = ($first -eq $domain.encryptedToken) } | ConvertTo-Json -Depth 8 -Compress
   `;
   const result = JSON.parse(execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
     encoding: "utf8", windowsHide: true, timeout: 15000,
@@ -77,6 +88,8 @@ test("Windows 旧账号和旧域名凭据可迁移为 SYSTEM 可读的本机 DPA
   const credentials = new WindowsCredentialStore();
   assert.equal(await credentials.unprotect(result.account.encryptedPassword), "account-test");
   assert.equal(await credentials.unprotect(result.domain.encryptedToken), "domain-test");
+  assert.equal(await credentials.unprotect(result.legacyService.encryptedFrpToken), "legacy-service-test");
+  assert.equal(result.legacyService.enabled, true);
   assert.equal(result.account.username, "keep");
   assert.equal(result.domain.canWrite, false);
   assert.deepEqual(result.domain.recordIds, ["old"]);
