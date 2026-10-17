@@ -93,4 +93,5 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "Windows installer built:"
-Write-Host (Join-Path $ProjectRoot "dist\88FRP-Windows-Setup-3.0.0.exe")
+$ProductVersion = (Get-Content -LiteralPath (Join-Path $ProjectRoot 'package.json') -Raw | ConvertFrom-Json).version
+Write-Host (Join-Path $DistDir ("88FRP-Windows-Setup-" + $ProductVersion + ".exe"))

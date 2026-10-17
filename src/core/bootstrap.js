@@ -7,11 +7,10 @@ const { TunnelService } = require("./tunnel-service");
 const { FrpAccountService } = require("./frp-account-service");
 const { AccessCenterService } = require("./access-center-service");
 const { ConsoleAuthService } = require("./console-auth-service");
+const { DomainBindingService } = require("./domain-binding-service");
 const { WindowsCredentialStore } = require("./windows-credential-store");
 const {
-  DEFAULT_AUTO_SYNC_INTERVAL_MS,
   DEFAULT_DATA_DIR,
-  DEFAULT_INSTANCE_AUTO_START_ON_BOOT,
   getDefaultFrpcBinaryPath,
 } = require("../shared/constants");
 
@@ -36,11 +35,10 @@ async function createAppContext(options = {}) {
   await store.initialize();
 
   const logger = createLogger(store);
-  const settings = await store.saveSettings({
-    autoSyncIntervalMs: Number(process.env.AUTO_SYNC_INTERVAL_MS || DEFAULT_AUTO_SYNC_INTERVAL_MS),
-    instanceAutoStartOnBoot:
-      String(process.env.INSTANCE_AUTO_START_ON_BOOT ?? Number(DEFAULT_INSTANCE_AUTO_START_ON_BOOT ? 1 : 0)) !== "0",
-  });
+  const overrides = {};
+  if (process.env.AUTO_SYNC_INTERVAL_MS !== undefined) overrides.autoSyncIntervalMs = Number(process.env.AUTO_SYNC_INTERVAL_MS);
+  if (process.env.INSTANCE_AUTO_START_ON_BOOT !== undefined) overrides.instanceAutoStartOnBoot = process.env.INSTANCE_AUTO_START_ON_BOOT !== "0";
+  const settings = Object.keys(overrides).length ? await store.saveSettings(overrides) : await store.getSettings();
 
   const tunnelService = new TunnelService({ store });
   const credentialStore = options.credentialStore || new WindowsCredentialStore();
@@ -68,6 +66,13 @@ async function createAppContext(options = {}) {
     frpcBinaryPath,
   });
   const consoleAuthService = new ConsoleAuthService({ store, credentialStore });
+  const domainBindingService = new DomainBindingService({
+    store,
+    instanceService: new InstanceService({ store }),
+    tunnelService,
+    credentialStore,
+    logger,
+  });
 
   return {
     logger,
@@ -81,6 +86,7 @@ async function createAppContext(options = {}) {
     tunnelService,
     accessCenterService,
     consoleAuthService,
+    domainBindingService,
   };
 }
 

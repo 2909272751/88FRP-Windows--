@@ -1,0 +1,25 @@
+/* Typography and surfaces shared with the desktop and management console. */
+:root { font-family: "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.65; color: #0f172a; background: #f6f8fb; }
+body { background: #f6f8fb; }
+h1 { font-size: 20px; font-weight: 600; }
+h2 { font-size: 26px; font-weight: 600; }
+h3, .section-heading h2 { font-size: 16px; font-weight: 600; }
+.eyebrow, .connection-status, .link-meta, .address-label, .tunnel-type, .link-hint, .status-label { font-size: 12px; }
+.topbar { background: #fff; border-color: #e2e8f0; backdrop-filter: none; }
+.topbar-inner { min-height: 64px; }
+.brand-logo { box-shadow: none; }
+.link-card { border-color: #e2e8f0; border-left-width: 1px; border-radius: 10px; box-shadow: none; background: #fff; }
+.link-name { color: #0f172a; font-size: 14px; font-weight: 600; }
+.address-value { font-family: Consolas, "Microsoft YaHei UI", monospace; font-size: 13px; font-weight: 400; color: #2563eb; }
+.link-group-title, .group-heading strong { font-size: 14px; font-weight: 600; }
+.primary-button, .secondary-button { min-height: 36px; font-size: 13px; font-weight: 500; border-radius: 6px; }
+.primary-button { background: #2563eb; border-color: #2563eb; }
+.primary-button:hover { background: #1d4ed8; }
+.icon-button { border-radius: 6px; }
+.stats { border-radius: 10px; border-color: #e2e8f0; box-shadow: none; }
+.stats dd { font-size: 24px; font-weight: 600; }
+.search-box { border-color: #e2e8f0; border-radius: 6px; background: #fff; }
+.search-box input { font-size: 13px; }
+.access-mode-notice { color: #64748b; background: #fff; border-color: #e2e8f0; font-size: 12px; }
+.profile-dialog, .speed-dialog, .auth-panel { border-radius: 12px; border-color: #e2e8f0; background: #fff; }
+@media (max-width: 640px) { h2 { font-size: 22px; } .page-content { padding-top: 24px; } }

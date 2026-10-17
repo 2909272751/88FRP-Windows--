@@ -26,18 +26,30 @@ using SD = System.Drawing;
 [assembly: AssemblyProduct("88FRP Windows")]
 [assembly: AssemblyDescription("88FRP Windows 隧道控制台")]
 [assembly: AssemblyCompany("88FRP Windows")]
-[assembly: AssemblyVersion("3.0.0.0")]
-[assembly: AssemblyFileVersion("3.0.0.0")]
+[assembly: AssemblyVersion("3.2.2.0")]
+[assembly: AssemblyFileVersion("3.2.2.0")]
 
 internal static class Program
 {
     internal const string AppName = "88FRP";
-    internal const string AppVersion = "3.0.0";
+    internal const string AppVersion = "3.2.2";
     internal const string Host = "127.0.0.1";
     internal const int DefaultConsolePort = 8801;
     internal static int ConsolePort = DefaultConsolePort;
     internal static string BaseUrl { get { return "http://" + Host + ":" + ConsolePort; } }
-    internal static readonly string AppDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "88frp-node");
+    internal static readonly string AppDataDir = ResolveAppDataDir();
+    private static string ResolveAppDataDir()
+    {
+        string settings = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "machine-config.json");
+        if (File.Exists(settings))
+        {
+            var config = NativeClient.AsDict(new JavaScriptSerializer().DeserializeObject(File.ReadAllText(settings, Encoding.UTF8)));
+            string root = NativeClient.GetString(config, "dataRoot");
+            if (!Path.IsPathRooted(root)) throw new InvalidOperationException("后台数据目录无效，请重新安装 88FRP。");
+            return root;
+        }
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "88frp-node");
+    }
     internal static readonly string FirstRunPath = Path.Combine(AppDataDir, "native-client-first-run.flag");
     internal static readonly string UpdateStatePath = Path.Combine(AppDataDir, "native-client-update-state.json");
     internal static readonly string ServicePortsPath = Path.Combine(AppDataDir, "native-client-service-ports.json");
@@ -45,6 +57,13 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        if (HasArg(args, "--backend-host"))
+        {
+            Directory.CreateDirectory(AppDataDir);
+            LoadConsolePort();
+            NativeClient.RunBackendHost();
+            return;
+        }
         DpiSupport.Enable();
         bool backgroundStart = HasArg(args, "--background");
         if (HasArg(args, "--uninstall"))
@@ -116,7 +135,7 @@ internal sealed class App : Application
     }
 }
 
-internal sealed class MainWindow : Window
+internal sealed partial class MainWindow : Window
 {
     private readonly NativeClient client = new NativeClient();
     private readonly bool backgroundStart;
@@ -128,6 +147,7 @@ internal sealed class MainWindow : Window
     private readonly CheckBox autoSyncBox = new CheckBox();
     private readonly TextBox configBox = new TextBox();
     private readonly StackPanel tunnelPanel = new StackPanel();
+    private readonly TextBlock tunnelSelectionSummary = new TextBlock();
     private readonly TextBox logsBox = new TextBox();
     private readonly DispatcherTimer pollTimer = new DispatcherTimer();
     private readonly DispatcherTimer watchdogTimer = new DispatcherTimer();
@@ -138,6 +158,7 @@ internal sealed class MainWindow : Window
     private readonly HashSet<string> collapsedTunnelGroups = new HashSet<string>(StringComparer.Ordinal);
     private readonly WF.NotifyIcon trayIcon = new WF.NotifyIcon();
     private string currentInstanceId = "";
+    private bool refreshingInstanceList;
     private bool exiting;
     private Button autoStartButton;
     private Button syncButton;
@@ -162,28 +183,35 @@ internal sealed class MainWindow : Window
     private string availableUpdateUrl = "";
     private static readonly string CollapsedTunnelGroupsPath = Path.Combine(Program.AppDataDir, "native-client-collapsed-tunnel-groups.json");
 
-    private static readonly Brush SidebarBrush = new SolidColorBrush(Color.FromRgb(20, 31, 48));
-    private static readonly Brush AppBrush = new SolidColorBrush(Color.FromRgb(246, 248, 251));
-    private static readonly Brush CardBrush = Brushes.White;
-    private static readonly Brush TextBrush = new SolidColorBrush(Color.FromRgb(15, 23, 42));
-    private static readonly Brush MutedBrush = new SolidColorBrush(Color.FromRgb(100, 116, 139));
-    private static readonly Brush AccentBrush = new SolidColorBrush(Color.FromRgb(37, 99, 235));
-    private static readonly Brush AccentGreenBrush = new SolidColorBrush(Color.FromRgb(20, 184, 166));
-    private static readonly Brush DangerBrush = new SolidColorBrush(Color.FromRgb(220, 38, 38));
-    private static readonly Brush UiBorderBrush = new SolidColorBrush(Color.FromRgb(226, 232, 240));
+    private static readonly ClientThemePalette ClientTheme = new ClientThemePalette();
+    private static readonly Brush SidebarBrush = ClientTheme.Brush("Card");
+    private static readonly Brush AppBrush = ClientTheme.Brush("App");
+    private static readonly Brush CardBrush = ClientTheme.Brush("Card");
+    private static readonly Brush TextBrush = ClientTheme.Brush("Text");
+    private static readonly Brush MutedBrush = ClientTheme.Brush("Muted");
+    private static readonly Brush AccentBrush = ClientTheme.Brush("Accent");
+    private static readonly Brush AccentTextBrush = ClientTheme.Brush("AccentText");
+    private static readonly Brush SurfaceBrush = ClientTheme.Brush("Surface");
+    private static readonly Brush AccentGreenBrush = ClientTheme.Brush("Success");
+    private static readonly Brush DangerBrush = ClientTheme.Brush("Danger");
+    private static readonly Brush UiBorderBrush = ClientTheme.Brush("Border");
 
     public MainWindow(bool backgroundStart)
     {
         this.backgroundStart = backgroundStart;
-        Title = "88FRP v3.0.0";
-        Width = 1220;
-        Height = 780;
-        MinWidth = 1040;
-        MinHeight = 660;
+        ApplyClientTheme(ReadDarkTheme());
+        Title = "88FRP v3.2.2";
+        Width = Math.Min(1280, SystemParameters.WorkArea.Width - 40);
+        Height = Math.Min(840, SystemParameters.WorkArea.Height - 40);
+        MinWidth = 1000;
+        MinHeight = 640;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Background = AppBrush;
-        FontFamily = new FontFamily("Microsoft YaHei UI");
-        FontSize = 14;
+        FontFamily = ClientUiStyles.Font;
+        Foreground = TextBrush;
+        FontSize = 13;
+        UseLayoutRounding = true;
+        SnapsToDevicePixels = true;
         Icon = NativeClient.LoadIconImage();
         TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
         TextOptions.SetTextRenderingMode(this, TextRenderingMode.ClearType);
@@ -200,13 +228,15 @@ internal sealed class MainWindow : Window
             {
                 client.StartBackend();
                 client.WaitForBackend();
-                RunFirstLaunchGuide();
                 RefreshAll();
-                pollTimer.Start();
-                watchdogTimer.Start();
-                updateTimer.Start();
-                if (backgroundStart) HideToTray();
             });
+            // Startup preferences must never prevent existing instances/settings
+            // from loading or stop recovery polling after an optional setup error.
+            pollTimer.Start();
+            watchdogTimer.Start();
+            updateTimer.Start();
+            if (backgroundStart) HideToTray();
+            Safe(RunFirstLaunchGuide);
             await CheckForUpdatesAsync(false);
         };
         Closing += OnClosing;
@@ -222,10 +252,10 @@ internal sealed class MainWindow : Window
     private UIElement BuildRoot()
     {
         Grid root = new Grid();
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(286) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(232) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        Border sidebar = new Border { Background = SidebarBrush, Padding = new Thickness(22, 26, 20, 22) };
+        Border sidebar = new Border { Background = SidebarBrush, Padding = new Thickness(18, 24, 18, 18), BorderBrush = UiBorderBrush, BorderThickness = new Thickness(0, 0, 1, 0) };
         Grid.SetColumn(sidebar, 0);
         root.Children.Add(sidebar);
 
@@ -235,41 +265,39 @@ internal sealed class MainWindow : Window
         StackPanel brand = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 24) };
         DockPanel.SetDock(brand, Dock.Top);
         sideDock.Children.Add(brand);
-        brand.Children.Add(new Image { Source = NativeClient.LoadLogoImage(), Width = 58, Height = 58, Stretch = Stretch.UniformToFill });
-        StackPanel brandText = new StackPanel { Margin = new Thickness(14, 4, 0, 0) };
+        brand.Children.Add(new Image { Source = NativeClient.LoadLogoImage(), Width = 40, Height = 40, Stretch = Stretch.Uniform });
+        StackPanel brandText = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
         brand.Children.Add(brandText);
-        brandText.Children.Add(new TextBlock { Text = "88FRP", Foreground = Brushes.White, FontSize = 26, FontWeight = FontWeights.Bold });
-        brandText.Children.Add(new TextBlock { Text = "Windows 隧道管理器 · v3.0.0", Foreground = new SolidColorBrush(Color.FromRgb(174, 190, 214)), FontSize = 13, Margin = new Thickness(0, 2, 0, 0) });
+        brandText.Children.Add(new TextBlock { Text = "88FRP", Foreground = TextBrush, FontSize = 20, FontWeight = FontWeights.SemiBold });
+        brandText.Children.Add(new TextBlock { Text = "隧道管理 · v" + Program.AppVersion, Foreground = MutedBrush, FontSize = 12, Margin = new Thickness(0, 2, 0, 0) });
 
-        Button create = PrimaryButton("+  新建实例", AccentGreenBrush);
-        create.Height = 42;
+        Button create = PrimaryButton("+  新建实例", AccentBrush);
+        create.Height = 38;
         create.Margin = new Thickness(0, 0, 0, 22);
         create.Click += delegate { Safe(CreateInstance); };
         DockPanel.SetDock(create, Dock.Top);
         sideDock.Children.Add(create);
 
-        TextBlock settingsTitle = SidebarSectionLabel("设置", new Thickness(0, 0, 0, 8));
-        DockPanel.SetDock(settingsTitle, Dock.Top);
-        sideDock.Children.Add(settingsTitle);
-        managementHubButton = SidebarNavButton("全局设置", "");
+        managementHubButton = SidebarNavButton("全局设置", "账号与后台运行");
         managementHubButton.Click += delegate { ShowManagementDrawer(); };
-        DockPanel.SetDock(managementHubButton, Dock.Top);
+        DockPanel.SetDock(managementHubButton, Dock.Bottom);
         sideDock.Children.Add(managementHubButton);
 
-        TextBlock listTitle = SidebarSectionLabel("实例", new Thickness(0, 0, 0, 8));
+        TextBlock listTitle = SidebarSectionLabel("我的实例", new Thickness(8, 0, 0, 12));
         DockPanel.SetDock(listTitle, Dock.Top);
         sideDock.Children.Add(listTitle);
 
         instanceList.Background = SidebarBrush;
         instanceList.BorderThickness = new Thickness(0);
-        instanceList.Foreground = Brushes.White;
-        instanceList.FontSize = 15;
+        instanceList.Foreground = TextBrush;
+        instanceList.FontSize = 13;
+        ScrollViewer.SetHorizontalScrollBarVisibility(instanceList, ScrollBarVisibility.Disabled);
         instanceList.HorizontalContentAlignment = HorizontalAlignment.Stretch;
         instanceList.ItemTemplate = BuildInstanceItemTemplate();
-        instanceList.SelectionChanged += delegate { Safe(SelectCurrentInstance); };
+        instanceList.SelectionChanged += delegate { if (!refreshingInstanceList) Safe(SelectCurrentInstance); };
         sideDock.Children.Add(instanceList);
 
-        Grid main = new Grid { Margin = new Thickness(30, 28, 30, 30) };
+        Grid main = new Grid { Margin = new Thickness(28, 24, 28, 24) };
         Grid.SetColumn(main, 1);
         root.Children.Add(main);
         main.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -297,16 +325,16 @@ internal sealed class MainWindow : Window
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         StackPanel title = new StackPanel();
-        title.Children.Add(new TextBlock { Text = "控制台", Foreground = TextBrush, FontSize = 32, FontWeight = FontWeights.Bold });
-        title.Children.Add(new TextBlock { Text = "只运行你选择的隧道，同步后也会记住选择。", Foreground = MutedBrush, FontSize = 15, Margin = new Thickness(2, 4, 0, 0) });
+        title.Children.Add(new TextBlock { Text = "隧道控制台", Foreground = TextBrush, FontSize = 26, FontWeight = FontWeights.SemiBold });
+        title.Children.Add(new TextBlock { Text = "管理连接，让服务始终在线。", Foreground = MutedBrush, FontSize = 13, Margin = new Thickness(0, 6, 0, 0) });
         header.Children.Add(title);
 
         StackPanel actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top };
         Grid.SetColumn(actions, 1);
         header.Children.Add(actions);
-        Button start = PrimaryButton("启动", new SolidColorBrush(Color.FromRgb(22, 163, 74)));
-        Button stop = OutlineButton("停止", new SolidColorBrush(Color.FromRgb(185, 28, 28)));
-        Button restart = PrimaryButton("重启", new SolidColorBrush(Color.FromRgb(79, 70, 229)));
+        Button start = PrimaryButton("启动", AccentBrush);
+        Button stop = OutlineButton("停止", DangerBrush);
+        Button restart = OutlineButton("重启", TextBrush);
         start.Click += delegate { Safe(delegate { RuntimeAction("start"); }); };
         stop.Click += delegate { Safe(delegate { RuntimeAction("stop"); }); };
         restart.Click += delegate { Safe(delegate { RuntimeAction("restart"); }); };
@@ -327,7 +355,7 @@ internal sealed class MainWindow : Window
         backendValue.Text = "检查中";
         AddStatusCard(grid, 0, "实例状态", statusValue, AccentGreenBrush);
         AddStatusCard(grid, 1, "进程 PID", pidValue, AccentBrush);
-        AddStatusCard(grid, 2, "后台核心", backendValue, new SolidColorBrush(Color.FromRgb(245, 158, 11)));
+        AddStatusCard(grid, 2, "后台核心", backendValue, AccentGreenBrush);
         return grid;
     }
 
@@ -339,11 +367,11 @@ internal sealed class MainWindow : Window
         card.Child = panel;
         StackPanel row = new StackPanel { Orientation = Orientation.Horizontal };
         row.Children.Add(new Border { Background = dot, Width = 10, Height = 10, CornerRadius = new CornerRadius(2), Margin = new Thickness(0, 5, 8, 0) });
-        row.Children.Add(new TextBlock { Text = title, Foreground = MutedBrush, FontSize = 14 });
+        row.Children.Add(new TextBlock { Text = title, Foreground = MutedBrush, FontSize = 12 });
         panel.Children.Add(row);
         value.Foreground = TextBrush;
-        value.FontSize = 27;
-        value.FontWeight = FontWeights.Bold;
+        value.FontSize = 22;
+        value.FontWeight = FontWeights.SemiBold;
         value.Margin = new Thickness(0, 8, 0, 0);
         value.TextTrimming = TextTrimming.CharacterEllipsis;
         panel.Children.Add(value);
@@ -355,22 +383,29 @@ internal sealed class MainWindow : Window
     {
         Border card = Card();
         card.Margin = new Thickness(0, 0, 0, 16);
-        DockPanel panel = new DockPanel { Margin = new Thickness(18, 12, 18, 12), LastChildFill = false };
-        card.Child = panel;
-        panel.Children.Add(new TextBlock { Text = "同步设置", Foreground = TextBrush, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 18, 0) });
-        panel.Children.Add(new TextBlock { Text = "密钥", Foreground = MutedBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) });
-        secretBox.Width = 260;
-        secretBox.Height = 32;
-        secretBox.FontSize = 15;
+        card.Padding = new Thickness(18, 10, 18, 10);
+        StackPanel heading = new StackPanel { Orientation = Orientation.Horizontal };
+        heading.Children.Add(new TextBlock { Text = "配置同步", Foreground = TextBrush, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+        heading.Children.Add(new TextBlock { Text = "密钥与自动同步", Foreground = MutedBrush, FontSize = 12, Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
+        Grid panel = new Grid();
+        panel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        panel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        panel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        secretBox.Height = 36;
+        secretBox.FontSize = 13;
         secretBox.VerticalContentAlignment = VerticalAlignment.Center;
+        secretBox.ToolTip = "88FRP 同步密钥";
         panel.Children.Add(secretBox);
         autoSyncBox.Content = "自动同步";
         autoSyncBox.Margin = new Thickness(18, 0, 18, 0);
         autoSyncBox.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(autoSyncBox, 1);
         panel.Children.Add(autoSyncBox);
         syncButton = PrimaryButton("同步配置", AccentBrush);
         syncButton.Click += async delegate { await SyncCurrentAsync(); };
+        Grid.SetColumn(syncButton, 2);
         panel.Children.Add(syncButton);
+        card.Child = new Expander { Header = heading, Content = panel, IsExpanded = false };
         return card;
     }
 
@@ -387,11 +422,11 @@ internal sealed class MainWindow : Window
 
         Border drawer = new Border
         {
-            Width = 356,
-            Background = Brushes.White,
+            Width = 420,
+            Background = CardBrush,
             BorderBrush = UiBorderBrush,
-            BorderThickness = new Thickness(0, 0, 1, 0),
-            HorizontalAlignment = HorizontalAlignment.Left,
+            BorderThickness = new Thickness(1, 0, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Stretch,
             Padding = new Thickness(24, 26, 24, 24)
         };
@@ -403,10 +438,10 @@ internal sealed class MainWindow : Window
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         StackPanel heading = new StackPanel();
-        heading.Children.Add(new TextBlock { Text = "管理与设置", Foreground = TextBrush, FontSize = 22, FontWeight = FontWeights.Bold });
+        heading.Children.Add(new TextBlock { Text = "全局设置", Foreground = TextBrush, FontSize = 22, FontWeight = FontWeights.SemiBold });
         heading.Children.Add(new TextBlock { Text = "账号、安全与后台运行", Foreground = MutedBrush, Margin = new Thickness(0, 4, 0, 0) });
         header.Children.Add(heading);
-        Button close = OutlineButton("关闭", AccentBrush);
+        Button close = OutlineButton("关闭", AccentTextBrush);
         close.MinWidth = 68;
         close.Margin = new Thickness(12, 0, 0, 0);
         close.Click += delegate { CloseManagementDrawer(); };
@@ -421,6 +456,14 @@ internal sealed class MainWindow : Window
         StackPanel content = new StackPanel();
         scroll.Content = content;
 
+        content.Children.Add(DrawerSectionLabel("外观"));
+        Button themeButton = DrawerActionButton("切换明亮 / 深色模式");
+        themeButton.Click += delegate {
+            bool dark = !ClientTheme.IsDark;
+            ApplyClientTheme(dark);
+            File.WriteAllText(Path.Combine(Program.AppDataDir, "native-client-theme.txt"), dark ? "dark" : "light");
+        };
+        content.Children.Add(themeButton);
         content.Children.Add(DrawerSectionLabel("访问中心"));
         accessCenterButton = DrawerActionButton("配置访问中心");
         accessCenterButton.Click += async delegate { await ManageAccessCenterAsync(); };
@@ -456,6 +499,7 @@ internal sealed class MainWindow : Window
         autoStartButton = DrawerActionButton(NativeClient.IsAutoStartEnabled() ? "开机自启：已开启" : "开机自启：未开启");
         autoStartButton.Click += delegate { Safe(ToggleAutoStart); };
         content.Children.Add(autoStartButton);
+        content.Children.Add(new TextBlock { Text = "开机后后台自动运行，无需登录 Windows。\n登录后启动桌面界面，关闭窗口仍在托盘运行。", Foreground = MutedBrush, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 10), LineHeight = 21 });
 
         content.Children.Add(DrawerSectionLabel("本机服务端口"));
         servicePortsButton = DrawerActionButton("管理本机服务端口");
@@ -610,31 +654,41 @@ internal sealed class MainWindow : Window
 
     private UIElement BuildTabs()
     {
-        TabControl tabs = new TabControl { FontSize = 15 };
-        tabs.Items.Add(BuildConfigTab());
+        TabControl tabs = new TabControl { FontSize = 13 };
         tabs.Items.Add(BuildTunnelTab());
+        tabs.Items.Add(BuildConfigTab());
+        tabs.Items.Add(BuildDomainTab());
         tabs.Items.Add(BuildLogsTab());
+        domainTabs = tabs;
+        tabs.SelectionChanged += delegate(object sender, SelectionChangedEventArgs e) {
+            if (e.Source == tabs && tabs.SelectedIndex == 2) Safe(delegate { LoadDomainBinding(); });
+        };
         return tabs;
     }
+
+    private TabControl domainTabs;
+
 
     private TabItem BuildConfigTab()
     {
         TabItem tab = new TabItem { Header = "配置文件" };
-        DockPanel dock = new DockPanel { Background = Brushes.White };
+        DockPanel dock = new DockPanel { Background = CardBrush };
+        StackPanel footer = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(20, 12, 20, 16) };
         Button save = PrimaryButton("保存配置", AccentBrush);
-        save.Height = 44;
-        save.Margin = new Thickness(0);
         save.Click += delegate { Safe(SaveConfig); };
-        DockPanel.SetDock(save, Dock.Bottom);
-        dock.Children.Add(save);
-        configBox.FontFamily = new FontFamily("Consolas");
-        configBox.FontSize = 15;
+        footer.Children.Add(save);
+        DockPanel.SetDock(footer, Dock.Bottom);
+        dock.Children.Add(footer);
+        TextBlock hint = new TextBlock { Text = "配置文件", Foreground = TextBrush, FontWeight = FontWeights.SemiBold, FontSize = 16, Margin = new Thickness(20, 18, 20, 14) };
+        DockPanel.SetDock(hint, Dock.Top); dock.Children.Add(hint);
+        configBox.FontFamily = new FontFamily("Consolas, Microsoft YaHei UI");
+        configBox.FontSize = 13;
         configBox.AcceptsReturn = true;
         configBox.AcceptsTab = true;
         configBox.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
         configBox.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
         configBox.TextWrapping = TextWrapping.Wrap;
-        configBox.Padding = new Thickness(12);
+        configBox.Padding = new Thickness(20, 8, 20, 8);
         configBox.BorderThickness = new Thickness(0);
         dock.Children.Add(configBox);
         tab.Content = dock;
@@ -643,24 +697,31 @@ internal sealed class MainWindow : Window
 
     private TabItem BuildTunnelTab()
     {
-        TabItem tab = new TabItem { Header = "隧道选择" };
-        DockPanel dock = new DockPanel { Background = Brushes.White };
+        TabItem tab = new TabItem { Header = "隧道" };
+        DockPanel dock = new DockPanel { Background = CardBrush };
+        TextBlock heading = new TextBlock { Text = "隧道管理", Foreground = TextBrush, FontSize = 16, FontWeight = FontWeights.SemiBold, Margin = new Thickness(20, 18, 20, 4) };
+        DockPanel.SetDock(heading, Dock.Top); dock.Children.Add(heading);
         TextBlock hint = new TextBlock
         {
-            Text = "勾选要运行的隧道；未勾选的会保留配置但不会启动。新同步隧道默认关闭。",
+            Text = "选择要运行的隧道，新同步的隧道默认关闭。更改后请保存。",
             Foreground = MutedBrush,
-            Margin = new Thickness(14, 12, 14, 10)
+            FontSize = 12,
+            Margin = new Thickness(20, 0, 20, 18)
         };
         DockPanel.SetDock(hint, Dock.Top);
         dock.Children.Add(hint);
-        Button save = PrimaryButton("保存隧道选择", AccentBrush);
-        save.Height = 44;
-        save.Margin = new Thickness(0);
+        DockPanel footer = new DockPanel { LastChildFill = false, Margin = new Thickness(20, 12, 20, 16) };
+        Button save = PrimaryButton("保存更改", AccentBrush);
         save.Click += delegate { Safe(SaveTunnels); };
-        DockPanel.SetDock(save, Dock.Bottom);
-        dock.Children.Add(save);
+        DockPanel.SetDock(save, Dock.Right); footer.Children.Add(save);
+        tunnelSelectionSummary.Foreground = MutedBrush;
+        tunnelSelectionSummary.FontSize = 12;
+        tunnelSelectionSummary.VerticalAlignment = VerticalAlignment.Center;
+        footer.Children.Add(tunnelSelectionSummary);
+        DockPanel.SetDock(footer, Dock.Bottom);
+        dock.Children.Add(footer);
         ScrollViewer scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        tunnelPanel.Margin = new Thickness(14, 0, 14, 14);
+        tunnelPanel.Margin = new Thickness(20, 0, 20, 0);
         scroll.Content = tunnelPanel;
         dock.Children.Add(scroll);
         tab.Content = dock;
@@ -670,27 +731,43 @@ internal sealed class MainWindow : Window
     private TabItem BuildLogsTab()
     {
         TabItem tab = new TabItem { Header = "运行日志" };
-        DockPanel dock = new DockPanel { Background = new SolidColorBrush(Color.FromRgb(15, 23, 42)) };
+        DockPanel dock = new DockPanel { Background = CardBrush };
         Button refresh = PrimaryButton("刷新日志", AccentBrush);
-        refresh.Height = 44;
-        refresh.Margin = new Thickness(0);
+        refresh.HorizontalAlignment = HorizontalAlignment.Right;
+        refresh.Margin = new Thickness(20, 12, 20, 16);
         refresh.Click += delegate { Safe(LoadLogs); };
         DockPanel.SetDock(refresh, Dock.Bottom);
         dock.Children.Add(refresh);
-        logsBox.FontFamily = new FontFamily("Consolas");
-        logsBox.FontSize = 14;
+        logsBox.FontFamily = new FontFamily("Consolas, Microsoft YaHei UI");
+        logsBox.FontSize = 13;
         logsBox.AcceptsReturn = true;
         logsBox.IsReadOnly = true;
         logsBox.TextWrapping = TextWrapping.Wrap;
         logsBox.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
         logsBox.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
-        logsBox.Background = new SolidColorBrush(Color.FromRgb(15, 23, 42));
-        logsBox.Foreground = new SolidColorBrush(Color.FromRgb(226, 232, 240));
+        logsBox.Background = CardBrush;
+        logsBox.Foreground = TextBrush;
         logsBox.BorderThickness = new Thickness(0);
         logsBox.Padding = new Thickness(14);
         dock.Children.Add(logsBox);
         tab.Content = dock;
         return tab;
+    }
+
+    private static bool ReadDarkTheme()
+    {
+        string file = Path.Combine(Program.AppDataDir, "native-client-theme.txt");
+        if (File.Exists(file)) return File.ReadAllText(file).Trim() == "dark";
+        using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"))
+            return key != null && Convert.ToInt32(key.GetValue("AppsUseLightTheme", 1)) == 0;
+    }
+    private void ApplyClientTheme(bool dark)
+    {
+        ClientTheme.Apply(dark);
+        ResourceDictionary resources = Application.Current == null ? Resources : Application.Current.Resources;
+        foreach (string name in new string[] { "App", "Card", "Text", "Muted", "Border", "Accent", "AccentText", "Surface", "PrimarySoft" })
+            resources["Client" + name] = ClientTheme.Brush(name);
+        if (!resources.Contains("ClientFont")) ClientUiStyles.Install(resources);
     }
 
     private Border Card()
@@ -700,7 +777,7 @@ internal sealed class MainWindow : Window
             Background = CardBrush,
             BorderBrush = UiBorderBrush,
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4)
+            CornerRadius = new CornerRadius(10)
         };
     }
 
@@ -709,10 +786,11 @@ internal sealed class MainWindow : Window
         Button button = new Button
         {
             Content = text,
-            Height = 34,
-            MinWidth = 104,
+            Height = 36,
+            MinWidth = 88,
             Margin = new Thickness(8, 0, 0, 0),
             Padding = new Thickness(16, 0, 16, 0),
+            FontSize = 13,
             Background = background,
             Foreground = Brushes.White,
             BorderBrush = background,
@@ -724,7 +802,7 @@ internal sealed class MainWindow : Window
 
     private Button OutlineButton(string text, Brush foreground)
     {
-        Button button = PrimaryButton(text, Brushes.White);
+        Button button = PrimaryButton(text, CardBrush);
         button.Foreground = foreground;
         button.BorderBrush = UiBorderBrush;
         return button;
@@ -735,7 +813,7 @@ internal sealed class MainWindow : Window
         return new TextBlock
         {
             Text = text,
-            Foreground = new SolidColorBrush(Color.FromRgb(203, 213, 225)),
+            Foreground = MutedBrush,
             FontWeight = FontWeights.SemiBold,
             FontSize = 12,
             Margin = margin
@@ -746,12 +824,12 @@ internal sealed class MainWindow : Window
     {
         bool hasDescription = !string.IsNullOrWhiteSpace(description);
         StackPanel content = new StackPanel { Margin = new Thickness(12, hasDescription ? 8 : 0, 12, hasDescription ? 8 : 0), VerticalAlignment = VerticalAlignment.Center };
-        content.Children.Add(new TextBlock { Text = title, Foreground = Brushes.White, FontWeight = FontWeights.SemiBold, FontSize = 14 });
+        content.Children.Add(new TextBlock { Text = title, Foreground = TextBrush, FontWeight = FontWeights.SemiBold, FontSize = 13 });
         if (hasDescription) content.Children.Add(new TextBlock
         {
             Text = description,
-            Foreground = new SolidColorBrush(Color.FromRgb(174, 190, 214)),
-            FontSize = 11,
+            Foreground = MutedBrush,
+            FontSize = 12,
             Margin = new Thickness(0, 2, 0, 0),
             TextWrapping = TextWrapping.Wrap
         });
@@ -763,9 +841,9 @@ internal sealed class MainWindow : Window
             Padding = new Thickness(0),
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Background = new SolidColorBrush(Color.FromRgb(29, 45, 68)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(49, 65, 89)),
+            Background = SurfaceBrush,
+            Foreground = TextBrush,
+            BorderBrush = UiBorderBrush,
             BorderThickness = new Thickness(1),
             Cursor = Cursors.Hand
         };
@@ -836,7 +914,7 @@ internal sealed class MainWindow : Window
             Margin = new Thickness(0, 0, 0, 6),
             Padding = new Thickness(12, 0, 12, 0),
             HorizontalContentAlignment = HorizontalAlignment.Left,
-            Background = new SolidColorBrush(Color.FromRgb(248, 250, 252)),
+            Background = SurfaceBrush,
             Foreground = TextBrush,
             BorderBrush = UiBorderBrush,
             BorderThickness = new Thickness(1),
@@ -853,8 +931,8 @@ internal sealed class MainWindow : Window
             MinWidth = 94,
             Margin = new Thickness(8, 0, 0, 6),
             Padding = new Thickness(10, 0, 10, 0),
-            Background = Brushes.White,
-            Foreground = AccentBrush,
+            Background = CardBrush,
+            Foreground = AccentTextBrush,
             BorderBrush = UiBorderBrush,
             BorderThickness = new Thickness(1),
             Cursor = Cursors.Hand
@@ -874,7 +952,7 @@ internal sealed class MainWindow : Window
         menuButton.SetValue(FrameworkElement.HeightProperty, 30.0);
         menuButton.SetValue(Control.PaddingProperty, new Thickness(0));
         menuButton.SetValue(Control.BackgroundProperty, Brushes.Transparent);
-        menuButton.SetValue(Control.ForegroundProperty, Brushes.White);
+        menuButton.SetValue(Control.ForegroundProperty, TextBrush);
         menuButton.SetValue(Control.BorderThicknessProperty, new Thickness(0));
         menuButton.SetValue(FrameworkElement.CursorProperty, Cursors.Hand);
         menuButton.SetValue(FrameworkElement.ToolTipProperty, "更多操作");
@@ -996,10 +1074,11 @@ internal sealed class MainWindow : Window
         if (File.Exists(Program.FirstRunPath))
         {
             string state = File.ReadAllText(Program.FirstRunPath, Encoding.UTF8).Trim();
-            if (string.Equals(state, "declined", StringComparison.OrdinalIgnoreCase)) return;
+            if (string.Equals(state, "declined", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(state, "enabled", StringComparison.OrdinalIgnoreCase)) return;
         }
         MessageBoxResult result = MessageBox.Show(
-            "是否开启开机自启动并保持后台运行？\n\n开启后，登录 Windows 后会自动启动 88FRP，并恢复之前启用的实例和已选择隧道。",
+            "是否开启开机自启动并保持后台运行？\n\n开启后，后台会在开机后自动运行，无需登录 Windows；登录后显示托盘入口。",
             "88FRP 首次启动设置",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question
@@ -1029,18 +1108,41 @@ internal sealed class MainWindow : Window
     {
         object[] rows = client.GetArray("/api/instances");
         string selectedId = keepSelection ? currentInstanceId : "";
-        instanceList.Items.Clear();
-        foreach (object row in rows)
+        InstanceListItem previous = instanceList.SelectedItem as InstanceListItem;
+        string previousId = previous == null ? "" : previous.Id;
+        Dictionary<string, object> selectedData = null;
+        refreshingInstanceList = true;
+        try
         {
-            Dictionary<string, object> item = NativeClient.AsDict(row);
-            string id = NativeClient.GetString(item, "id");
-            string name = NativeClient.GetString(item, "name");
-            string status = NativeClient.GetNestedString(item, "runtime", "status");
-            InstanceListItem listItem = new InstanceListItem { Id = id, Name = name, Status = status, Text = name + "  ·  " + TranslateStatus(status) };
-            instanceList.Items.Add(listItem);
-            if (id == selectedId) instanceList.SelectedItem = listItem;
+            instanceList.Items.Clear();
+            foreach (object row in rows)
+            {
+                Dictionary<string, object> item = NativeClient.AsDict(row);
+                string id = NativeClient.GetString(item, "id");
+                string name = NativeClient.GetString(item, "name");
+                string status = NativeClient.GetNestedString(item, "runtime", "status");
+                InstanceListItem listItem = new InstanceListItem { Id = id, Name = name, Status = status, Text = name + "  ·  " + TranslateStatus(status) };
+                instanceList.Items.Add(listItem);
+                if (id == selectedId) { instanceList.SelectedItem = listItem; selectedData = item; }
+            }
+            if (instanceList.SelectedIndex < 0 && instanceList.Items.Count > 0) instanceList.SelectedIndex = 0;
         }
-        if (instanceList.SelectedIndex < 0 && instanceList.Items.Count > 0) instanceList.SelectedIndex = 0;
+        finally { refreshingInstanceList = false; }
+        InstanceListItem selected = instanceList.SelectedItem as InstanceListItem;
+        if (selected == null) { ClearCurrentDetails(); return; }
+        // Polling updates runtime only. Re-selecting a rebuilt list item used to
+        // recreate every editor each four seconds, discarding typing and focus.
+        if (!keepSelection || selected.Id != previousId || selected.Id != currentInstanceId)
+            SelectCurrentInstance();
+        else if (selectedData != null)
+        {
+            statusValue.Text = TranslateStatus(NativeClient.GetNestedString(selectedData, "runtime", "status"));
+            string pid = NativeClient.GetNestedString(selectedData, "runtime", "pid");
+            pidValue.Text = pid == "" ? "-" : pid;
+            backendValue.Text = "正常";
+            if (domainTabs != null && domainTabs.SelectedIndex == 3) LoadLogs();
+            if (domainTabs != null && domainTabs.SelectedIndex == 2) LoadDomainBinding();
+        }
     }
 
     private void SelectCurrentInstance()
@@ -1065,6 +1167,7 @@ internal sealed class MainWindow : Window
         configBox.Text = NativeClient.GetString(config, "configText");
         LoadTunnels();
         LoadLogs();
+        if (domainTabs != null && domainTabs.SelectedIndex == 2) LoadDomainBinding();
     }
 
     private void LoadTunnels()
@@ -1111,15 +1214,16 @@ internal sealed class MainWindow : Window
             {
                 BorderBrush = UiBorderBrush,
                 BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(5),
-                Background = new SolidColorBrush(Color.FromRgb(250, 252, 255)),
+                CornerRadius = new CornerRadius(8),
+                Background = CardBrush,
                 Margin = new Thickness(0, 0, 0, 10)
             };
             StackPanel groupPanel = new StackPanel();
             groupCard.Child = groupPanel;
             DockPanel groupHeader = new DockPanel
             {
-                Background = new SolidColorBrush(Color.FromRgb(241, 245, 249)),
+                Background = SurfaceBrush,
+                MinHeight = 42,
                 LastChildFill = true
             };
             groupPanel.Children.Add(groupHeader);
@@ -1179,6 +1283,7 @@ internal sealed class MainWindow : Window
                 updatingGroup = true;
                 groupToggle.IsChecked = enabledCount == groupChecks.Count ? (bool?)true : enabledCount == 0 ? (bool?)false : null;
                 updatingGroup = false;
+                UpdateTunnelSelectionSummary();
             };
             RoutedEventHandler toggleGroup = delegate(object sender, RoutedEventArgs args)
             {
@@ -1196,16 +1301,21 @@ internal sealed class MainWindow : Window
             {
                 string tunnelName = NativeClient.GetString(tunnel, "name");
                 string displayName = NativeClient.GetString(tunnel, "displayName");
-                string title = displayName == "" ? tunnelName : displayName + "  ·  " + tunnelName;
-                Grid row = new Grid { Margin = new Thickness(10, 2, 10, 6) };
+                string title = displayName == "" ? tunnelName : displayName;
+                Grid row = new Grid { Margin = new Thickness(12, 10, 12, 10) };
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(170) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(148) });
+                StackPanel copy = new StackPanel();
+                copy.Children.Add(new TextBlock { Text = title, FontSize = 13, Foreground = TextBrush, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = title + "\n" + tunnelName });
+                copy.Children.Add(new TextBlock { Text = NativeClient.GetString(tunnel, "type").ToUpperInvariant() + "   " + NativeClient.GetString(tunnel, "localPort") + "  →  " + NativeClient.GetString(tunnel, "remotePort"), Foreground = MutedBrush, FontSize = 12, Margin = new Thickness(0, 4, 0, 0) });
                 CheckBox check = new CheckBox
                 {
                     IsChecked = NativeClient.GetBool(tunnel, "enabled"),
-                    Padding = new Thickness(4),
-                    FontSize = 14,
-                    Content = title + "    " + NativeClient.GetString(tunnel, "type") + "    本地 " + NativeClient.GetString(tunnel, "localPort") + "  →  远程 " + NativeClient.GetString(tunnel, "remotePort")
+                    HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 16, 0),
+                    FontSize = 13,
+                    Content = copy
                 };
                 check.Checked += delegate { if (!updatingGroup) refreshGroupToggle(); };
                 check.Unchecked += delegate { if (!updatingGroup) refreshGroupToggle(); };
@@ -1215,13 +1325,12 @@ internal sealed class MainWindow : Window
                 groupChecks.Add(check);
 
                 StackPanel groupEditor = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-                groupEditor.Children.Add(new TextBlock { Text = "分组", Foreground = MutedBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 7, 0) });
                 TextBox groupInput = new TextBox
                 {
-                    Height = 29,
-                    Width = 132,
+                    Height = 34,
+                    Width = 148,
                     Text = NativeClient.GetString(tunnel, "groupOverride"),
-                    ToolTip = "留空会继续自动归入“" + group + "”。"
+                    ToolTip = "自定义分组；留空会继续自动归入“" + group + "”。"
                 };
                 groupEditor.Children.Add(groupInput);
                 Grid.SetColumn(groupEditor, 1);
@@ -1232,6 +1341,14 @@ internal sealed class MainWindow : Window
             refreshGroupToggle();
             tunnelPanel.Children.Add(groupCard);
         }
+        UpdateTunnelSelectionSummary();
+    }
+
+    private void UpdateTunnelSelectionSummary()
+    {
+        int count = 0;
+        foreach (CheckBox check in tunnelChecks.Values) if (check.IsChecked == true) count++;
+        tunnelSelectionSummary.Text = "共 " + tunnelChecks.Count + " 条隧道 · 已选择 " + count + " 条";
     }
 
     private void LoadCollapsedTunnelGroups()
@@ -1494,7 +1611,7 @@ internal sealed class MainWindow : Window
         }
         catch (Exception ex)
         {
-            backendValue.Text = "错误";
+            backendValue.Text = client.IsBackendHealthy() ? "正常" : "离线";
             MessageBox.Show(FriendlyError(ex), Program.AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
@@ -1740,7 +1857,8 @@ internal sealed class MainWindow : Window
         try { action(); }
         catch (Exception ex)
         {
-            backendValue.Text = "错误";
+            backendValue.Text = client.IsBackendHealthy() ? "正常" : "离线";
+            try { File.AppendAllText(Path.Combine(Program.AppDataDir, "native-client-errors.log"), DateTime.Now.ToString("s") + " " + ex.Message + Environment.NewLine); } catch { }
             MessageBox.Show(FriendlyError(ex), Program.AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
@@ -1793,7 +1911,7 @@ internal sealed class CreateInstanceWindow : Window
         Height = 230;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.NoResize;
-        FontFamily = new FontFamily("Microsoft YaHei UI");
+        ClientUiStyles.ConfigureWindow(this);
         Icon = NativeClient.LoadIconImage();
         Grid grid = new Grid { Margin = new Thickness(18) };
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -1857,7 +1975,7 @@ internal sealed class FrpAccountWindow : Window
         Height = 280;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.NoResize;
-        FontFamily = new FontFamily("Microsoft YaHei UI");
+        ClientUiStyles.ConfigureWindow(this);
         Icon = NativeClient.LoadIconImage();
         Grid grid = new Grid { Margin = new Thickness(20) };
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -1930,7 +2048,7 @@ internal sealed class AccessCenterWindow : Window
         Height = 670;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.NoResize;
-        FontFamily = new FontFamily("Microsoft YaHei UI");
+        ClientUiStyles.ConfigureWindow(this);
         Icon = NativeClient.LoadIconImage();
 
         Grid grid = new Grid { Margin = new Thickness(22) };
@@ -1988,7 +2106,7 @@ internal sealed class AccessCenterWindow : Window
             Text = configured
                 ? "Token 只在当前 Windows 用户下加密保存。外网入口始终公开只读，链接设置只能在本客户端修改。"
                 : "此连接只用于访问中心，不会替换或修改当前 88FRP 同步隧道。访问中心始终为公开只读入口。",
-            Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139)),
+            Foreground = ClientUiStyles.MutedBrush,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 12, 0, 0)
         };
@@ -2055,7 +2173,7 @@ internal sealed class ServicePortsWindow : Window
         Height = 430;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.NoResize;
-        FontFamily = new FontFamily("Microsoft YaHei UI");
+        ClientUiStyles.ConfigureWindow(this);
         Icon = NativeClient.LoadIconImage();
 
         Grid grid = new Grid { Margin = new Thickness(24) };
@@ -2076,7 +2194,7 @@ internal sealed class ServicePortsWindow : Window
             Text = affectedTunnelCount > 0
                 ? "当前有 " + affectedTunnelCount + " 条 88FRP 隧道指向此端口。改动后需在 88FRP 端同步修改这些隧道的本地端口。"
                 : "控制桌面客户端和网页控制台的本机访问地址。保存后后台会自动重启。",
-            Foreground = affectedTunnelCount > 0 ? new SolidColorBrush(Color.FromRgb(180, 83, 9)) : new SolidColorBrush(Color.FromRgb(100, 116, 139)),
+            Foreground = affectedTunnelCount > 0 ? new SolidColorBrush(Color.FromRgb(180, 83, 9)) : ClientUiStyles.MutedBrush,
             TextWrapping = TextWrapping.Wrap,
             LineHeight = 18,
             Margin = new Thickness(0, 8, 0, 0)
@@ -2094,7 +2212,7 @@ internal sealed class ServicePortsWindow : Window
         TextBlock accessHint = new TextBlock
         {
             Text = accessConfigured ? "仅供独立访问中心在本机监听；保存后访问中心会自动重启。" : "访问中心尚未配置，启用后可在此统一调整端口。",
-            Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139)),
+            Foreground = ClientUiStyles.MutedBrush,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 8, 0, 0)
         };
@@ -2209,6 +2327,13 @@ internal sealed class NativeClient
         {
             if (IsBackendHealthy()) return;
             if (backendProcess != null && !backendProcess.HasExited) return;
+            if (IsAutoStartEnabled())
+            {
+                RunHidden("schtasks.exe", "/Run /TN \"88FRP Backend\"");
+                WaitForBackend();
+                if (!IsBackendHealthy()) throw new InvalidOperationException("开机后台尚未就绪，请稍后重试或查看后台日志。");
+                return;
+            }
             string backendPath = AppFile("88frp-web.exe");
             if (!File.Exists(backendPath))
             {
@@ -2355,6 +2480,7 @@ internal sealed class NativeClient
     }
 
     public object[] GetArray(string path) { return AsArray(Request("GET", path, null)); }
+    public Dictionary<string, object> GetDict(string path, int timeoutMs) { return AsDict(Request("GET", path, null, timeoutMs)); }
     public Dictionary<string, object> GetDict(string path) { return AsDict(Request("GET", path, null)); }
     public Dictionary<string, object> PostDict(string path, Dictionary<string, object> payload) { return AsDict(Request("POST", path, payload, 12000)); }
     public Dictionary<string, object> PostDict(string path, Dictionary<string, object> payload, int timeoutMs) { return AsDict(Request("POST", path, payload, timeoutMs)); }
@@ -2438,20 +2564,56 @@ internal sealed class NativeClient
     {
         try { Process.Start(new ProcessStartInfo { FileName = Program.BaseUrl, UseShellExecute = true }); } catch { }
     }
-    public static void EnableAutoStart()
+    private static void ConfigureStartup(string mode)
     {
-        string command = "\"" + Process.GetCurrentProcess().MainModule.FileName + "\" --background";
-        using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true)) key.SetValue(Program.AppName, command);
-        RunHidden("schtasks.exe", "/Create /TN \"88FRP Background\" /SC ONLOGON /RL LIMITED /F /TR \"" + command.Replace("\"", "\\\"") + "\"");
+        string script = AppFile("configure-startup.ps1");
+        if (!File.Exists(script)) throw new FileNotFoundException("缺少自启动配置组件，请重新安装。", script);
+        var info = new ProcessStartInfo {
+            FileName = "powershell.exe",
+            Arguments = "-NoProfile -ExecutionPolicy Bypass -File \"" + script + "\" -Mode " + mode + " -AppDir \"" + AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\') + "\" -DataRoot \"" + Program.AppDataDir + "\" -UserSid \"" + System.Security.Principal.WindowsIdentity.GetCurrent().User.Value + "\"",
+            UseShellExecute = true, Verb = new System.Security.Principal.WindowsPrincipal(System.Security.Principal.WindowsIdentity.GetCurrent()).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator) ? "" : "runas", WindowStyle = ProcessWindowStyle.Hidden
+        };
+        NativeClient helper = new NativeClient();
+        if (mode == "Enable") helper.StopBackend(false);
+        try {
+            using (Process process = Process.Start(info)) {
+                process.WaitForExit();
+                if (process.ExitCode != 0) throw new InvalidOperationException("自启动配置失败，原有数据已保留。请查看数据目录中的 startup-config.log。");
+            }
+        } finally { if (mode == "Enable" && !helper.IsBackendHealthy()) helper.StartBackend(); }
     }
+    public static void EnableAutoStart() { ConfigureStartup("Enable"); }
     public static void DisableAutoStart()
     {
-        using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true)) key.DeleteValue(Program.AppName, false);
-        RunHidden("schtasks.exe", "/Delete /TN \"88FRP Background\" /F");
+        ConfigureStartup("Disable");
+        using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
+            if (key != null) key.DeleteValue(Program.AppName, false);
     }
     public static bool IsAutoStartEnabled()
     {
-        using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false)) return key != null && key.GetValue(Program.AppName) != null;
+        // Query the actual task state; a stale registry value is not evidence of boot startup.
+        try {
+            var service = Activator.CreateInstance(Type.GetTypeFromProgID("Schedule.Service"));
+            dynamic scheduler = service;
+            scheduler.Connect();
+            return scheduler.GetFolder("\\").GetTask("88FRP Backend").Enabled;
+        } catch { return false; }
+    }
+
+    public static void RunBackendHost()
+    {
+        try {
+            var info = new ProcessStartInfo { FileName = AppFile("88frp-web.exe"), WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory,
+                UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden };
+            info.EnvironmentVariables["HOST"] = Program.Host;
+            info.EnvironmentVariables["PORT"] = Program.ConsolePort.ToString();
+            info.EnvironmentVariables["APP_BASE_DIR"] = Program.AppDataDir;
+            info.EnvironmentVariables["INSTANCE_AUTO_START_ON_BOOT"] = "1";
+            using (Process backend = Process.Start(info)) { backend.WaitForExit(); Environment.ExitCode = backend.ExitCode; }
+        } catch (Exception ex) {
+            File.AppendAllText(Path.Combine(Program.AppDataDir, "backend-host.log"), DateTime.Now.ToString("s") + " " + ex.Message + Environment.NewLine);
+            Environment.ExitCode = 1;
+        }
     }
     public static bool IsTcpPortAvailable(int port)
     {

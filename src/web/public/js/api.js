@@ -16,6 +16,7 @@ window.API = (() => {
     }
 
     if (!response.ok || !data?.success) {
+      if (response.status === 401) window.location.replace("/login");
       throw new Error(data?.message || `请求失败: HTTP ${response.status}`);
     }
 
@@ -111,6 +112,36 @@ window.API = (() => {
         method: "POST",
         body: JSON.stringify({ restartOnChange }),
       });
+    },
+
+    /* ------------------------------------------------------ 域名绑定 ---- */
+
+    getDomainBinding(id) {
+      return request(`/api/instances/${id}/domain-binding`);
+    },
+    saveDomainBinding(id, payload) {
+      return request(`/api/instances/${id}/domain-binding`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+    },
+    saveDomainToken(id, token, zone) {
+      return request(`/api/instances/${id}/domain-binding/token`, {
+        method: "POST",
+        body: JSON.stringify({ token, zone }),
+      });
+    },
+    getDomainPlan(id) {
+      return request(`/api/instances/${id}/domain-binding/plan`);
+    },
+    syncDomain(id, dryRun = false) {
+      return request(`/api/instances/${id}/domain-binding/sync`, {
+        method: "POST",
+        body: JSON.stringify({ dryRun }),
+      });
+    },
+    getDomainLinks(id) {
+      return request(`/api/instances/${id}/domain-binding/links`);
     },
   };
 })();

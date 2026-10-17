@@ -1,14 +1,9 @@
 const fs = require("fs");
 const path = require("path");
+const { isPidAlive } = require("./process-utils");
 
 function isProcessRunning(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
+  return isPidAlive(pid);
 }
 
 function createAlreadyRunningError(lockPath, pid) {

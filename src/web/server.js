@@ -43,13 +43,16 @@ async function createWebApp(options = {}) {
   const app = express();
   const publicDir = getPublicDir();
   const syncScheduler = context.syncService.startAutoSyncScheduler();
+  const domainScheduler = context.domainBindingService.startAutoFollow();
   const scheduler = {
     async start() {
       context.processManager.startSupervisor();
       await syncScheduler.start();
+      domainScheduler.start();
     },
     stop() {
       syncScheduler.stop();
+      domainScheduler.stop();
       context.processManager.stopSupervisor();
       context.accessCenterService.stopMonitoring();
     },
@@ -237,6 +240,70 @@ async function createWebApp(options = {}) {
     );
   }));
 
+  /* ---------------------------------------------------- 域名绑定 ------ */
+
+  // 当前状态：配置、期望记录、访问链接（不联网）
+  app.get("/api/instances/:id/domain-binding", asyncHandler(async (req, res) => {
+    await context.instanceService.get(req.params.id);
+    sendJson(res, await context.domainBindingService.status(req.params.id));
+  }));
+
+  // 改配置（开关、域名、TTL 等）
+  app.put("/api/instances/:id/domain-binding", asyncHandler(async (req, res) => {
+    await context.instanceService.get(req.params.id);
+    context.domainBindingService.configure(req.params.id, req.body || {});
+    sendJson(res, await context.domainBindingService.status(req.params.id), "配置已保存，即时生效。");
+  }));
+
+  // 提交并验证 Cloudflare Token：验证不通过就不落盘
+  app.post("/api/instances/:id/domain-binding/token", asyncHandler(async (req, res) => {
+    await context.instanceService.get(req.params.id);
+    const svc = context.domainBindingService;
+    const token = String((req.body || {}).token || "").trim();
+    const zone = String((req.body || {}).zone || "").trim();
+    if (!token) throw new Error("Token 不能为空。");
+    if (!zone) throw new Error("请先填写域名。");
+
+    const verify = await svc.verifyToken(token, zone);
+    if (!verify.ok) {
+      sendJson(res, { saved: false, verify }, "验证未通过。");
+      return;
+    }
+
+    svc.configure(req.params.id, { zone });
+    svc.write(req.params.id, { encryptedToken: await svc.encrypt(token) });
+    sendJson(res, {
+      saved: true,
+      verify,
+      status: await svc.status(req.params.id),
+    }, "授权已保存。");
+  }));
+
+  // 试运行
+  app.get("/api/instances/:id/domain-binding/plan", asyncHandler(async (req, res) => {
+    await context.instanceService.get(req.params.id);
+    sendJson(res, await context.domainBindingService.plan(req.params.id));
+  }));
+
+  // 执行同步
+  app.post("/api/instances/:id/domain-binding/sync", asyncHandler(async (req, res) => {
+    await context.instanceService.get(req.params.id);
+    const result = await context.domainBindingService.sync(req.params.id, {
+      dryRun: Boolean((req.body || {}).dryRun),
+    });
+    sendJson(res, result, result.applied ? "解析已更新。" : result.reason || "无需变更。");
+  }));
+
+  // 纯文本链接清单（供「复制全部」）
+  app.get("/api/instances/:id/domain-binding/links", asyncHandler(async (req, res) => {
+    await context.instanceService.get(req.params.id);
+    const svc = context.domainBindingService;
+    sendJson(res, {
+      text: await svc.linksText(req.params.id),
+      status: await svc.status(req.params.id),
+    });
+  }));
+
   app.put("/api/instances/:id/config", asyncHandler(async (req, res) => {
     const validation = await context.syncService.saveConfig(req.params.id, String(req.body.configText || ""));
     sendJson(res, { validation }, validation.warnings[0] || "配置已保存。");
@@ -276,6 +343,7 @@ async function createWebApp(options = {}) {
   }));
 
   app.get("/login", (_req, res) => res.sendFile(path.join(publicDir, "console-login.html")));
+  app.get("/index.html", (_req, res) => res.redirect(302, "/"));
   app.use(express.static(publicDir, { index: false }));
   app.use(asyncHandler(async (req, res, next) => {
     if (isDesktopRequest(req) || await context.consoleAuthService.verify(readCookie(req.headers.cookie, "88frp_console"))) return next();

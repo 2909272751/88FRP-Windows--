@@ -13,11 +13,11 @@ internal sealed class ConsoleSecurityWindow : Window
     public bool RevokeDevices { get { return revokeBox.IsChecked == true; } }
     public ConsoleSecurityWindow(string username)
     {
-        Title = "控制台安全"; Width = 470; Height = 390; ResizeMode = ResizeMode.NoResize; WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        FontFamily = new FontFamily("Microsoft YaHei UI"); Icon = NativeClient.LoadIconImage();
+        Title = "控制台安全"; Width = 520; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize; WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        ClientUiStyles.ConfigureWindow(this); Icon = NativeClient.LoadIconImage();
         StackPanel panel = new StackPanel { Margin = new Thickness(24) }; Content = panel;
         panel.Children.Add(new TextBlock { Text = "管理员账号", FontSize = 20, FontWeight = FontWeights.Bold });
-        panel.Children.Add(new TextBlock { Text = "网页控制台使用独立账号。密码仅以当前 Windows 用户加密保存。", Margin = new Thickness(0, 8, 0, 16), Foreground = new SolidColorBrush(Color.FromRgb(100,116,139)), TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(new TextBlock { Text = "网页控制台使用独立账号。密码仅以当前 Windows 用户加密保存。", Margin = new Thickness(0, 8, 0, 16), Foreground = ClientUiStyles.MutedBrush, TextWrapping = TextWrapping.Wrap });
         panel.Children.Add(new TextBlock { Text = "用户名" }); usernameBox.Text = username; usernameBox.Height = 31; panel.Children.Add(usernameBox);
         panel.Children.Add(new TextBlock { Text = "新密码", Margin = new Thickness(0, 12, 0, 4) }); passwordBox.Height = 31; panel.Children.Add(passwordBox);
         panel.Children.Add(new TextBlock { Text = "确认新密码", Margin = new Thickness(0, 12, 0, 4) }); confirmBox.Height = 31; panel.Children.Add(confirmBox);

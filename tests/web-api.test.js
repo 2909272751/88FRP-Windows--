@@ -40,6 +40,26 @@ async function withServer(run, appOptions = {}) {
   }
 }
 
+test("域名开关立即持久化，接口不接受或返回凭据及账本；只读同步不访问 Cloudflare", async () => {
+  await withServer(async baseUrl => {
+    const created = await (await fetch(`${baseUrl}/api/instances`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "domain-settings" }) })).json();
+    const endpoint = `${baseUrl}/api/instances/${created.data.id}/domain-binding`;
+    const saved = await (await fetch(endpoint, { method: "PUT", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ zone: "example.com", enabled: true, canWrite: false, autoFollow: false, encryptedToken: "must-ignore", recordIds: ["must-ignore"] }) })).json();
+    assert.equal(saved.data.config.canWrite, false);
+    assert.equal(saved.data.config.autoFollow, false);
+    assert.equal(saved.data.hasToken, false);
+    assert.equal("encryptedToken" in saved.data, false);
+    const sync = await (await fetch(`${endpoint}/sync`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).json();
+    assert.equal(sync.data.action, "readonly");
+    assert.equal(sync.data.applied, false);
+    const invalid = await fetch(endpoint, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ canWrite: "false" }) });
+    assert.equal(invalid.ok, false);
+    const status = await (await fetch(endpoint)).json();
+    assert.equal(status.data.config.canWrite, false);
+  });
+});
+
 test("健康检查接口返回服务状态", async () => {
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/api/health`);

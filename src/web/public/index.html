@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f6f8fb">
   <title>88FRP 控制台</title>
   <link rel="stylesheet" href="/css/lucide.css">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/style.css?v=3.2.2">
 </head>
 <body>
   <div class="app-backdrop"></div>
@@ -47,7 +47,7 @@
           <i class="icon-menu" aria-hidden="true"></i>
         </button>
         <div class="top-app-bar-title">
-          <span class="eyebrow">88FRP 控制台 · v3.0.0</span>
+          <span class="eyebrow">88FRP 控制台 · v3.2.2</span>
           <strong id="topInstanceName">选择实例</strong>
         </div>
         <div class="top-app-bar-actions">
@@ -168,6 +168,9 @@
           <button class="tab" data-view="log" type="button" role="tab" aria-selected="false">
             <i class="icon-scroll-text" aria-hidden="true"></i><span>日志</span>
           </button>
+          <button class="tab" data-view="domain" type="button" role="tab" aria-selected="false">
+            <i class="icon-globe" aria-hidden="true"></i><span>域名绑定</span>
+          </button>
         </nav>
 
         <div class="content-area">
@@ -224,6 +227,126 @@
               </button>
             </header>
             <pre id="logContent" class="log-view">正在加载日志...</pre>
+          </section>
+
+          <section id="domainView" class="view-panel domain-container">
+            <header class="panel-header">
+              <div>
+                <h2>域名绑定</h2>
+                <p>把隧道映射到一个域名，节点 IP 变了自动跟着改。</p>
+              </div>
+              <div class="panel-header-actions">
+                <span class="status-chip" id="domainRoleChip">
+                  <span class="status-dot"></span>
+                  <span id="domainRoleText">未配置</span>
+                </span>
+              </div>
+            </header>
+
+            <!-- 授权 -->
+            <section class="sync-card glass-surface" id="domainAuthCard">
+              <button class="sync-card-summary" id="btnToggleDomainAuth" type="button" aria-expanded="false">
+                <span class="sync-card-icon"><i class="icon-key-round" aria-hidden="true"></i></span>
+                <span class="sync-card-copy">
+                  <strong>Cloudflare 授权</strong>
+                  <span id="domainAuthSummary">需要一次授权才能自动管理解析</span>
+                </span>
+                <i class="icon-chevron-down sync-card-chevron" aria-hidden="true"></i>
+              </button>
+
+              <div class="sync-settings-panel" id="domainAuthPanel">
+                <p class="domain-hint">
+                  三步拿到授权：打开
+                  <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener" class="text-button">
+                    <span>Cloudflare API Tokens</span><i class="icon-external-link" aria-hidden="true"></i>
+                  </a>
+                  → <strong>Create Token</strong> → 选 <strong>Edit zone DNS</strong> 的 Use template →
+                  Zone Resources 选你的域名 → 复制粘贴到下面。
+                </p>
+                <div class="domain-field">
+                  <label for="domainZone">域名</label>
+                  <input type="text" id="domainZone" class="form-control" placeholder="例如 example.com" autocomplete="off">
+                </div>
+                <div class="domain-field">
+                  <label for="domainToken">API Token</label>
+                  <input type="password" id="domainToken" class="form-control" placeholder="粘贴 Token" autocomplete="off">
+                </div>
+                <div class="domain-auth-actions">
+                  <button class="filled-button" id="btnSaveDomainToken" type="button">
+                    <i class="icon-shield-check" aria-hidden="true"></i><span>验证并保存</span>
+                  </button>
+                  <span class="domain-msg" id="domainAuthMsg"></span>
+                </div>
+                <ul class="domain-checks" id="domainChecks"></ul>
+              </div>
+            </section>
+
+            <div class="domain-dashboard">
+            <!-- 开关 -->
+            <section class="domain-toggles glass-surface">
+              <label class="switch-row" for="domainEnabled">
+                <span class="switch-copy">
+                  <strong>启用域名绑定</strong>
+                  <span>关掉后不再改动 DNS，已绑的域名继续有效</span>
+                </span>
+                <span class="material-switch">
+                  <input type="checkbox" id="domainEnabled">
+                  <span class="switch-track"><span class="switch-thumb"></span></span>
+                </span>
+              </label>
+
+              <label class="switch-row" for="domainAutoFollow">
+                <span class="switch-copy"><strong>自动跟随节点 IP</strong><span>每 60 秒检查；网络恢复后自动重试，也可暂停后手动同步</span></span>
+                <span class="material-switch"><input type="checkbox" id="domainAutoFollow"><span class="switch-track"><span class="switch-thumb"></span></span></span>
+              </label>
+
+              <label class="switch-row" for="domainCanWrite">
+                <span class="switch-copy">
+                  <strong>由本机修改解析</strong>
+                  <span id="domainCanWriteHint">多台设备只能开一台，否则会互相覆盖</span>
+                </span>
+                <span class="material-switch">
+                  <input type="checkbox" id="domainCanWrite">
+                  <span class="switch-track"><span class="switch-thumb"></span></span>
+                </span>
+              </label>
+            </section>
+
+            <!-- 记录状态 -->
+            <section class="domain-record glass-surface" id="domainRecordCard">
+              <div class="domain-record-main">
+                <div class="domain-record-copy">
+                  <span class="domain-record-label">当前记录</span>
+                  <strong id="domainRecordText">—</strong>
+                  <span class="domain-record-sub" id="domainRecordSub"></span>
+                  <span class="domain-record-sub" id="domainAutoStatus" role="status" aria-live="polite"></span>
+                </div>
+                <div class="domain-record-actions">
+                  <button class="tonal-button" id="btnDomainPlan" type="button">
+                    <i class="icon-search" aria-hidden="true"></i><span>预览</span>
+                  </button>
+                  <button class="filled-button" id="btnDomainSync" type="button">
+                    <i class="icon-refresh-cw" aria-hidden="true"></i><span>立即同步</span>
+                  </button>
+                </div>
+              </div>
+              <div class="domain-plan-result" id="domainPlanResult"></div>
+            </section>
+
+            </div>
+            <!-- 访问链接 -->
+            <section class="domain-links glass-surface">
+              <header class="domain-links-header">
+                <div>
+                  <strong>访问链接</strong>
+                  <span id="domainLinksSub">所有服务共用一条 A 记录，靠端口区分</span>
+                </div>
+                <button class="tonal-button" id="btnCopyDomainLinks" type="button">
+                  <i class="icon-copy" aria-hidden="true"></i><span>复制全部</span>
+                </button>
+              </header>
+              <div id="domainLinksList" class="domain-links-list"></div>
+            </section>
           </section>
         </div>
       </div>
@@ -302,7 +425,7 @@
           <span class="switch-track"><span class="switch-thumb"></span></span>
         </span>
       </label>
-      <p class="account-security-note"><i class="icon-shield-check" aria-hidden="true"></i> 密码由当前 Windows 用户加密保护，不写入配置或日志。</p>
+      <p class="account-security-note"><i class="icon-shield-check" aria-hidden="true"></i> 密码使用本机加密保护，仅当前用户和系统后台可读取，不记录明文。</p>
       </div>
       <div id="frpAccountManagement" class="account-management" hidden>
         <i class="icon-tags" aria-hidden="true"></i>
@@ -322,6 +445,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="/js/api.js"></script>
+  <script src="/js/domain-binding.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

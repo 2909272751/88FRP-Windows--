@@ -2,7 +2,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const state = {
     instances: [],
     currentInstanceId: readLocal("88frp.currentInstanceId"),
-    activeView: readLocal("88frp.activeView") || "tunnels",
+    // 优先用 URL 上的 ?view=xxx，其次本地记忆，最后默认隧道页。
+    // 桌面客户端内嵌本页时用 ?view=domain 直接定位到域名绑定，
+    // 否则用户每次都要自己点一下 tab。
+    activeView: validView(viewFromUrl() || readLocal("88frp.activeView")),
     originalConfigText: "",
     originalSecretKey: "",
     originalAutoSyncEnabled: false,
@@ -15,7 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
     tunnelRequestId: 0,
     openInstanceMenuId: null,
     instancesExpanded: false,
-    syncSettingsExpanded: false,
+    syncSettingsExpanded: readLocal("88frp.console.syncExpanded") === "true",
     pollingTimer: null,
     toastTimer: null,
     busy: false,
@@ -82,6 +85,8 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   bindEvents();
+  window.toast = showToast;
+  if (window.DomainBinding) window.DomainBinding.bind();
   applyTheme(readLocal("88frp.theme") || preferredTheme());
   init().catch((error) => showToast(error.message));
 
@@ -131,6 +136,7 @@ document.addEventListener("DOMContentLoaded", () => {
         renderTabs();
         if (state.activeView === "log") await withBusy(loadLogs);
         if (state.activeView === "tunnels") await withBusy(loadTunnels);
+        if (state.activeView === "domain") await activateDomainView();
       });
     });
 
@@ -158,6 +164,8 @@ document.addEventListener("DOMContentLoaded", () => {
   async function init() {
     await Promise.all([loadInstances(), loadFrpAccount()]);
     if (state.currentInstanceId) await refreshCurrentInstance();
+    // 事件要在数据之后绑，否则绑到还没渲染出来的元素上
+    if (state.activeView === "domain") await activateDomainView();
     startPolling();
   }
 
@@ -267,7 +275,6 @@ document.addEventListener("DOMContentLoaded", () => {
   async function loadInstances() {
     const res = await API.getInstances();
     state.instances = res.data || [];
-
     if (state.currentInstanceId && !state.instances.some((item) => item.id === state.currentInstanceId)) {
       state.currentInstanceId = null;
     }
@@ -338,6 +345,17 @@ document.addEventListener("DOMContentLoaded", () => {
     renderInstanceList();
   }
 
+  /**
+   * 把当前实例交给域名绑定面板。
+   * 面板自己判断要不要真的重新拉数据（换实例时才拉），
+   * 所以这里可以放心地在每次切 tab / 切实例时调用。
+   */
+  async function activateDomainView() {
+    if (!window.DomainBinding) return;
+    if (!state.currentInstanceId) return;
+    await window.DomainBinding.activate(state.currentInstanceId);
+  }
+
   async function selectInstance(instanceId) {
     state.openInstanceMenuId = null;
     state.currentInstanceId = instanceId;
@@ -348,6 +366,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderInstanceList();
     setInstancesExpanded(false);
     await withBusy(refreshCurrentInstance);
+    if (state.activeView === "domain") await activateDomainView();
   }
 
   async function refreshCurrentInstance() {
@@ -388,6 +407,8 @@ document.addEventListener("DOMContentLoaded", () => {
     els.emptyState.style.display = hasInstance ? "none" : "flex";
     els.workbench.style.display = hasInstance ? "flex" : "none";
     els.topInstanceName.textContent = hasInstance ? current.name : "选择实例";
+    els.syncCard.classList.toggle("is-expanded", state.syncSettingsExpanded);
+    els.btnToggleSyncSettings.setAttribute("aria-expanded", String(state.syncSettingsExpanded));
 
     if (!hasInstance) {
       els.instStatusInfo.textContent = "";
@@ -457,6 +478,7 @@ document.addEventListener("DOMContentLoaded", () => {
       editor: document.getElementById("editorView"),
       tunnels: document.getElementById("tunnelsView"),
       log: document.getElementById("logView"),
+      domain: document.getElementById("domainView"),
     };
     Object.entries(views).forEach(([name, panel]) => {
       const active = name === state.activeView;
@@ -570,14 +592,15 @@ document.addEventListener("DOMContentLoaded", () => {
       section.className = "tunnel-group";
       const groupKey = `${state.currentInstanceId || ""}\n${group}`;
       const collapsed = state.collapsedTunnelGroups.has(groupKey);
+      section.classList.toggle("is-collapsed", collapsed);
       const enabledCount = groupTunnels.filter((tunnel) => state.tunnelSelection[tunnel.name]).length;
       const header = document.createElement("div");
       header.className = "tunnel-group-header";
       header.innerHTML = `
-        <span class="tunnel-group-title">
+        <button type="button" class="tunnel-group-title group-collapse-button" title="${collapsed ? "展开分组" : "收起分组"}" aria-label="${collapsed ? "展开" : "收起"} ${escapeHtml(group)} 分组" aria-expanded="${String(!collapsed)}">
+          <i class="${collapsed ? "icon-chevron-right" : "icon-chevron-down"}" aria-hidden="true"></i>
           <strong>${escapeHtml(group)}</strong>
-          <button type="button" class="group-collapse-button icon-button" title="${collapsed ? "展开分组" : "收起分组"}" aria-label="${collapsed ? "展开" : "收起"} ${escapeHtml(group)} 分组" aria-expanded="${String(!collapsed)}"><i class="${collapsed ? "icon-chevron-down" : "icon-chevron-up"}" aria-hidden="true"></i></button>
-        </span>
+        </button>
         <span class="tunnel-group-actions">
           <label class="material-switch">
             <input type="checkbox" aria-label="切换 ${escapeHtml(group)} 分组全部隧道">
@@ -604,13 +627,22 @@ document.addEventListener("DOMContentLoaded", () => {
       collapseButton.addEventListener("click", () => {
         if (state.collapsedTunnelGroups.has(groupKey)) state.collapsedTunnelGroups.delete(groupKey);
         else state.collapsedTunnelGroups.add(groupKey);
+        const nextCollapsed = state.collapsedTunnelGroups.has(groupKey);
         writeLocal("88frp.console.collapsedTunnelGroups", JSON.stringify([...state.collapsedTunnelGroups]));
-        renderTunnels();
+        rows.hidden = nextCollapsed;
+        section.classList.toggle("is-collapsed", nextCollapsed);
+        collapseButton.setAttribute("aria-expanded", String(!nextCollapsed));
+        collapseButton.setAttribute("aria-label", `${nextCollapsed ? "展开" : "收起"} ${group} 分组`);
+        collapseButton.title = nextCollapsed ? "展开分组" : "收起分组";
+        collapseButton.querySelector("i").className = nextCollapsed ? "icon-chevron-right" : "icon-chevron-down";
       });
       section.appendChild(header);
 
       const rows = document.createElement("div");
       rows.className = "tunnel-group-rows";
+      const rowsId = `tunnel-group-${els.tunnelsList.children.length}`;
+      rows.id = rowsId;
+      collapseButton.setAttribute("aria-controls", rowsId);
       rows.hidden = collapsed;
       for (const tunnel of groupTunnels) {
         const enabled = Boolean(state.tunnelSelection[tunnel.name]);
@@ -817,6 +849,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function toggleSyncSettings() {
     state.syncSettingsExpanded = !state.syncSettingsExpanded;
+    writeLocal("88frp.console.syncExpanded", String(state.syncSettingsExpanded));
     els.syncCard.classList.toggle("is-expanded", state.syncSettingsExpanded);
     els.btnToggleSyncSettings.setAttribute("aria-expanded", String(state.syncSettingsExpanded));
   }
@@ -878,7 +911,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const dark = theme === "dark";
     icon.className = dark ? "icon-sun" : "icon-moon";
     els.btnTheme.setAttribute("aria-label", dark ? "切换浅色模式" : "切换深色模式");
-    document.querySelector('meta[name="theme-color"]').setAttribute("content", dark ? "#11161d" : "#f5f7fa");
+    document.querySelector('meta[name="theme-color"]').setAttribute("content", dark ? "#111827" : "#f6f8fb");
   }
 
   function preferredTheme() {
@@ -952,6 +985,14 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch {
       return null;
     }
+  }
+
+  function validView(value) {
+    return ["tunnels", "editor", "log", "domain"].includes(value) ? value : "tunnels";
+  }
+
+  function viewFromUrl() {
+    return new URLSearchParams(window.location.search).get("view");
   }
 
   function readJsonArray(key) {

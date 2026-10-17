@@ -5,3 +5,7 @@ dist/
 coverage/
 .env
 .sea/
+backup-installed-*/
+*.log
+*.err
+scripts/archive/
