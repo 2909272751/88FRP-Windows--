@@ -1,5 +1,5 @@
 #define AppName "88FRP"
-#define AppVersion "3.2.4"
+#define AppVersion "3.2.5"
 #define AppPublisher "88FRP Windows"
 #define AppURL "https://github.com/2909272751/88FRP-Windows--"
 #define AppExeName "88FRP.exe"
@@ -23,7 +23,7 @@ DisableReadyPage=no
 DisableFinishedPage=no
 DisableProgramGroupPage=yes
 OutputDir=..\dist
-OutputBaseFilename=88FRP-Windows-Setup-3.2.4
+OutputBaseFilename=88FRP-Windows-Setup-3.2.5
 SetupIconFile=..\assets\88frp-logo.ico
 UninstallDisplayIcon={app}\88FRP.exe
 Compression=lzma2/ultra64
@@ -94,8 +94,8 @@ begin
   Result := ResultCode;
 end;
 
-{ 通过 schtasks 停止 + 禁用一个任务；任务不存在时返回 False }
-function StopAndDisableTask(const TaskName: String): Boolean;
+{ 先禁用任务防止重启，由升级助手正常停止后台，避免强制结束时截断状态写入 }
+function DisableTaskForUpgrade(const TaskName: String): Boolean;
 var
   Code: Integer;
   Scheduler, Task: Variant;
@@ -134,10 +134,6 @@ begin
   if not Exec(ExpandConstant('{sys}\schtasks.exe'),
     '/Change /TN "' + TaskName + '" /DISABLE', '', SW_HIDE, ewWaitUntilTerminated, Code) or (Code <> 0) then
     RaiseException('无法暂停旧版后台任务，尚未替换任何文件：' + TaskName);
-  if WasRunning then
-    if not Exec(ExpandConstant('{sys}\schtasks.exe'),
-      '/End /TN "' + TaskName + '"', '', SW_HIDE, ewWaitUntilTerminated, Code) or (Code <> 0) then
-      RaiseException('无法停止旧版后台任务，尚未替换任何文件：' + TaskName);
   Result := True;
 end;
 
@@ -189,12 +185,12 @@ begin
   WizardForm.StatusLabel.Caption := '正在检查旧服务、备份配置并停止旧后台...';
   WizardForm.StatusLabel.Update;
 
-  StopAndDisableTask('88FRP Backend');
-  StopAndDisableTask('88FRP Desktop');
-  StopAndDisableTask('88FRP Background');
-  StopAndDisableTask('88FRP (boot)');
-  StopAndDisableTask('88FRP');
-  StopAndDisableTask('88frp');
+  DisableTaskForUpgrade('88FRP Backend');
+  DisableTaskForUpgrade('88FRP Desktop');
+  DisableTaskForUpgrade('88FRP Background');
+  DisableTaskForUpgrade('88FRP (boot)');
+  DisableTaskForUpgrade('88FRP');
+  DisableTaskForUpgrade('88frp');
 
   ExtractTemporaryFile('windows-upgrade.ps1');
   ExtractTemporaryFile('configure-startup.ps1');

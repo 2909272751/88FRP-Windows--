@@ -79,7 +79,7 @@ Copy-Item -Force (Join-Path $ProjectRoot "assets\88frp-logo.png") (Join-Path $Pu
 Copy-Item -Force $IconPath (Join-Path $PublishDir "88frp-logo.ico")
 
 $Readme = @(
-  "88FRP Windows 3.2.4",
+  "88FRP Windows 3.2.5",
   "",
   "使用方法：",
   "1. 双击 88FRP.exe 打开原生桌面客户端。",

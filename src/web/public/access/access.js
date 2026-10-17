@@ -85,7 +85,7 @@
 
   function renderStats(links) {
     elements.enabledCount.textContent = String(links.filter((link) => link.enabled).length);
-    elements.openableCount.textContent = String(links.filter((link) => link.enabled && link.canOpen).length);
+    elements.openableCount.textContent = String(links.filter((link) => link.canOpen && link.url).length);
     elements.totalCount.textContent = String(links.length);
   }
 
@@ -218,7 +218,7 @@
     const copy = document.createElement("div"); copy.className = "address-copy";
     const addressLabel = document.createElement("span");
     addressLabel.className = "address-label"; addressLabel.textContent = label;
-    const canOpen = Boolean(link.enabled && link.canOpen && link.url);
+    const canOpen = Boolean(link.canOpen && link.url);
     const addressValue = document.createElement(canOpen ? "a" : "div");
     addressValue.className = `address-value${canOpen ? " address-link" : " endpoint-value"}`;
     addressValue.textContent = link.url || link.endpoint || "当前没有可用地址";

@@ -31,6 +31,20 @@ function runFixture(script) {
   }
 }
 
+test("升级读取旧后台正在写入的状态时等待完整内容，不把残缺文件当空状态", { skip: process.platform !== "win32" }, () => {
+  const result = runFixture(`
+    $file=Join-Path $root 'runtime.json'
+    [IO.File]::WriteAllText($file,'{"status":')
+    $script:reads=0
+    function Start-Sleep {param($Milliseconds) $script:reads++;if($script:reads -eq 2){[IO.File]::WriteAllText($file,'{"status":"running","resumeOnBackendStart":true}')}}
+    $value=Read-88RuntimeState $file
+    [IO.File]::WriteAllText($file,'{"status":')
+    $blocked=$false;try{Read-88RuntimeState $file|Out-Null}catch{$blocked=$_.Exception.Message -like '*No application files*'}
+    @{resumed=($value.status -eq 'running' -and $value.resumeOnBackendStart);waited=($script:reads -ge 2);damagedBlocked=$blocked;damagedPreserved=([IO.File]::ReadAllText($file) -eq '{"status":')}|ConvertTo-Json -Compress
+  `);
+  for (const [key, value] of Object.entries(result)) assert.equal(value, true, key);
+});
+
 test("旧服务升级识别真实数据，先禁用再停止，失败恢复，成功清理且不碰其他服务", { skip: process.platform !== "win32" }, () => {
   const r = runFixture(`
     $app=Join-Path $root 'installed'; $env:ProgramData=Join-Path $root 'programdata'

@@ -94,6 +94,7 @@ class Store {
     this.accessCenterDir = path.join(dataDir, "access-center");
     this.instancesDir = path.join(dataDir, "instances");
     this.logWriters = new Map();
+    this.jsonWrites = new Map();
   }
 
   async initialize() {
@@ -134,7 +135,26 @@ class Store {
   }
 
   async writeJson(filePath, value) {
-    await fsp.writeFile(filePath, JSON.stringify(value, null, 2), "utf8");
+    const contents = JSON.stringify(value, null, 2);
+    const previous = this.jsonWrites.get(filePath) || Promise.resolve();
+    const write = previous.catch(() => {}).then(async () => {
+      const temporary = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
+      try {
+        await fsp.writeFile(temporary, contents, { encoding: "utf8", flag: "wx" });
+        for (let attempt = 0; ; attempt++) {
+          try { await fsp.rename(temporary, filePath); break; }
+          catch (error) {
+            if (!["EPERM", "EACCES", "EBUSY"].includes(error.code) || attempt >= 9) throw error;
+            await new Promise(resolve => setTimeout(resolve, 20));
+          }
+        }
+      } finally {
+        await fsp.rm(temporary, { force: true }).catch(() => {});
+      }
+    });
+    this.jsonWrites.set(filePath, write);
+    try { await write; }
+    finally { if (this.jsonWrites.get(filePath) === write) this.jsonWrites.delete(filePath); }
   }
 
   async getSettings() {

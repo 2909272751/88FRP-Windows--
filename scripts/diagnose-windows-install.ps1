@@ -128,6 +128,7 @@ $client = $files | Where-Object name -eq '88FRP.exe'
 $knownBackends = @{
   'D576AC337597251C64B6EC5E99394FDB48FAF4A4271ED9AFAFB676D5F022701B'='3.2.3'
   'E606A34B1FB44CCEEF2B6128276BF2B6A63FEFCA9163555B02228AFF5DDB79E5'='3.2.4'
+  '3FB5E2B727AF3195E5F6D8219D44AB7EE67C72AB7B1F65C5421C55D24E24422F'='3.2.5'
 }
 if ($backend.exists -and $knownBackends.ContainsKey([string]$backend.sha256)) { $credential.officialBackendVersion=$knownBackends[[string]$backend.sha256] }
 try {

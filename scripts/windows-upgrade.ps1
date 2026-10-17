@@ -1,4 +1,4 @@
-﻿# Shared installer transaction helpers. This file is also shipped with the
+# Shared installer transaction helpers. This file is also shipped with the
 # portable client; it never runs on its own or deletes user data.
 function Test-88PathInside([string]$Path, [string]$Root) {
   $full = [IO.Path]::GetFullPath($Path)
@@ -82,7 +82,7 @@ function Set-88PrivateDirectory([string]$Directory, [string]$OwnerSid) {
 function New-88UpgradeBackup([string]$Root, [string]$AppDir, [string]$OwnerSid) {
   $backupRoot = Join-Path ([IO.Path]::GetDirectoryName($Root)) '88frp-backups'
   Set-88PrivateDirectory $backupRoot $OwnerSid
-  $snapshot = Join-Path $backupRoot ('upgrade-3.2.4-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
+  $snapshot = Join-Path $backupRoot ('upgrade-3.2.5-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
   [IO.Directory]::CreateDirectory($snapshot) | Out-Null
   $data = Join-Path $Root 'data'
   if (Test-Path -LiteralPath $data) { Copy-Item -LiteralPath $data -Destination $snapshot -Recurse }
@@ -132,6 +132,18 @@ function Restore-88Upgrade([string]$StatePath) {
   $state.rolledBack = $true
   Save-Json $StatePath $state
 }
+function Read-88RuntimeState([string]$Path) {
+  # Older backends wrote status files in place. Retry a transient partial write
+  # before stopping anything; never replace a damaged state with empty defaults.
+  for ($attempt=0; $attempt -lt 30; $attempt++) {
+    try {
+      $value = [IO.File]::ReadAllText($Path) | ConvertFrom-Json
+      if ($value -isnot [Management.Automation.PSCustomObject] -or $value.status -isnot [string]) { throw 'Incomplete runtime state.' }
+      return $value
+    } catch { if ($attempt -lt 29) { Start-Sleep -Milliseconds 100 } }
+  }
+  throw ('Could not read a complete runtime state: ' + $Path + '. No application files were replaced.')
+}
 function Prepare-88Upgrade([string]$AppDir, [string]$Root, [string]$OwnerSid, [string]$StatePath) {
   $requestedRoot = $Root
   $roots = @(Get-88InstallRoots $AppDir)
@@ -147,7 +159,7 @@ function Prepare-88Upgrade([string]$AppDir, [string]$Root, [string]$OwnerSid, [s
     foreach ($dir in Get-ChildItem -LiteralPath $instances -Directory) {
       $runtime = Join-Path $dir.FullName 'runtime.json'
       if (Test-Path -LiteralPath $runtime) {
-        $value = [IO.File]::ReadAllText($runtime) | ConvertFrom-Json
+        $value = Read-88RuntimeState $runtime
         if ($value.status -eq 'running' -or $value.resumeOnBackendStart) { $resume += $runtime }
       }
     }
@@ -166,7 +178,7 @@ function Prepare-88Upgrade([string]$AppDir, [string]$Root, [string]$OwnerSid, [s
   }
   if (@(Get-88OwnedProcesses $roots $root).Count) { throw 'Application processes are still running. No application files have been replaced.' }
   foreach ($runtime in $resume) {
-    $value = [IO.File]::ReadAllText($runtime) | ConvertFrom-Json
+    $value = Read-88RuntimeState $runtime
     $value | Add-Member -NotePropertyName resumeOnBackendStart -NotePropertyValue $true -Force
     Save-Json $runtime $value
   }
