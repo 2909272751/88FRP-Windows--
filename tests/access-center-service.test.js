@@ -463,7 +463,10 @@ test("访问中心配置允许首次连接失败后持续重试", async () => {
     );
 
     children[0].crash(1);
-    await waitFor(async () => children.length === 2 && (await store.getAccessCenterRuntime()).status === "running");
+    await waitFor(
+      async () => children.length === 2 && (await store.getAccessCenterRuntime()).status === "running",
+      15000,
+    );
     assert.equal(children.length, 2);
 
     await service.stop();

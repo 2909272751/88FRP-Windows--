@@ -115,7 +115,31 @@ test("分页后的旧记录会清理，节点解析失败和损坏配置不会�
   await assert.rejects(s.service.sync("one"), /unavailable/);
   assert.equal(s.writes().length, count);
   fs.writeFileSync(s.service.configPath("one"), '{bad');
+  for (const suffix of [".previous", ".bak", ".backup"]) fs.rmSync(s.service.configPath("one") + suffix, { force: true });
   await assert.rejects(s.service.sync("one"), /配置无法读取/);
+});
+
+test("主配置被写坏时自动从上一份有效配置恢复并保留损坏文件", async t => {
+  const s = setup(t);
+  s.service.write("one", { zone: "example.net", hostname: "home" });
+  const configPath = s.service.configPath("one");
+  fs.writeFileSync(configPath, Buffer.alloc(955));
+
+  const recovered = s.service.read("one");
+  assert.equal(recovered.zone, "example.com");
+  assert.equal(recovered.hostname, "@");
+  assert.doesNotThrow(() => JSON.parse(fs.readFileSync(configPath, "utf8")));
+  assert.ok(fs.readdirSync(s.dir).some(name => name.includes("domain-binding.json.corrupt-")));
+});
+
+test("主配置损坏且没有有效备份时拒绝使用空配置", async t => {
+  const s = setup(t);
+  const configPath = s.service.configPath("one");
+  for (const suffix of ["", ".previous", ".bak", ".backup"]) fs.rmSync(configPath + suffix, { force: true });
+  fs.writeFileSync(configPath, Buffer.alloc(955));
+
+  assert.throws(() => s.service.read("one"), /自动恢复也失败/);
+  assert.equal(fs.readFileSync(configPath).equals(Buffer.alloc(955)), true);
 });
 
 test("后台每轮读取三开关，失败自动退避，停止后不再调度", async t => {
@@ -195,4 +219,24 @@ test("检查间隔校验及快速模式的失败退避", async t => {
   assert.equal(s.service.automatic.get("one").failures, 1);
   time += 25000; await scheduler.tick();
   assert.equal(s.service.automatic.get("one").nextAt, time + 60000);
+});
+
+test("自动跟随未变化时只更新运行状态，不重写持久配置", async t => {
+  const s = setup(t);
+  let time = 100000;
+  const scheduler = s.service.startAutoFollow({ intervalMs: 1000000, now: () => time });
+  t.after(() => scheduler.stop());
+  scheduler.start();
+  await scheduler.tick();
+
+  const originalWrite = s.service.write.bind(s.service);
+  let durableWrites = 0;
+  s.service.write = (...args) => { durableWrites += 1; return originalWrite(...args); };
+  const configBefore = fs.readFileSync(s.service.configPath("one"), "utf8");
+  time += 15000;
+  await scheduler.tick();
+
+  assert.equal(durableWrites, 0);
+  assert.equal(fs.readFileSync(s.service.configPath("one"), "utf8"), configBefore);
+  assert.ok(fs.existsSync(s.service.runtimePath("one")));
 });

@@ -82,7 +82,7 @@ function Set-88PrivateDirectory([string]$Directory, [string]$OwnerSid) {
 function New-88UpgradeBackup([string]$Root, [string]$AppDir, [string]$OwnerSid) {
   $backupRoot = Join-Path ([IO.Path]::GetDirectoryName($Root)) '88frp-backups'
   Set-88PrivateDirectory $backupRoot $OwnerSid
-  $snapshot = Join-Path $backupRoot ('upgrade-3.2.5-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
+  $snapshot = Join-Path $backupRoot ('upgrade-3.2.6-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
   [IO.Directory]::CreateDirectory($snapshot) | Out-Null
   $data = Join-Path $Root 'data'
   if (Test-Path -LiteralPath $data) { Copy-Item -LiteralPath $data -Destination $snapshot -Recurse }

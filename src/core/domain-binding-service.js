@@ -24,6 +24,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { isIP } = require("node:net");
 const { resolve4 } = require("node:dns/promises");
+const { parseJsonText, readJsonWithRecoverySync, writeJsonAtomicSync } = require("../shared/atomic-json-file");
 const { WindowsCredentialStore } = require("./windows-credential-store");
 
 const MANAGED_COMMENT = "由 88FRP 域名绑定自动创建，请勿手工删除";
@@ -31,6 +32,7 @@ const CF_API = "https://api.cloudflare.com/client/v4";
 
 /** 界面开关和配置存在实例目录下的 domain-binding.json */
 const FILE_NAME = "domain-binding.json";
+const RUNTIME_FILE_NAME = "domain-binding-runtime.json";
 
 const DEFAULT_CONFIG = {
   enabled: false,
@@ -50,7 +52,27 @@ const DEFAULT_CONFIG = {
   lastSyncAt: "",
   lastSummary: null,
   recordIds: [],
+  lastCheckAt: "",
+  lastError: "",
 };
+
+const DEFAULT_RUNTIME = {
+  lastCheckAt: "",
+  lastError: "",
+};
+
+function validateStoredConfig(raw) {
+  if (!raw || Array.isArray(raw) || typeof raw !== "object"
+    || ["enabled", "canWrite", "autoFollow"].some(key => key in raw && typeof raw[key] !== "boolean")
+    || ["recordIds", "recordLedger", "onlyTunnels", "skipTunnels"].some(key => key in raw && !Array.isArray(raw[key]))) {
+    throw new Error("Invalid configuration");
+  }
+  if ("checkIntervalSeconds" in raw
+    && (!Number.isInteger(raw.checkIntervalSeconds) || raw.checkIntervalSeconds < 5 || raw.checkIntervalSeconds > 3600)) {
+    throw new Error("域名检查间隔无效");
+  }
+  return raw;
+}
 
 class DomainBindingService {
   constructor({ store, instanceService, tunnelService, credentialStore = new WindowsCredentialStore(), logger, fetchImpl = fetch, resolveIPv4 = resolve4 }) {
@@ -63,6 +85,8 @@ class DomainBindingService {
     this.resolveIPv4 = resolveIPv4;
     this.inflight = new Map();
     this.automatic = new Map();
+    this.runtime = new Map();
+    this.runtimePersistedAt = new Map();
   }
 
   /* ------------------------------------------------------------ 配置文件 */
@@ -76,29 +100,78 @@ class DomainBindingService {
     return this.store.getConfigPath(instanceId).replace(/frpc\.toml$/, FILE_NAME);
   }
 
+  runtimePath(instanceId) {
+    return this.store.getConfigPath(instanceId).replace(/frpc\.toml$/, RUNTIME_FILE_NAME);
+  }
+
   read(instanceId) {
     const file = this.configPath(instanceId);
-    let raw = {};
-    try {
-      raw = JSON.parse(fs.readFileSync(file, "utf8"));
-      if (!raw || Array.isArray(raw) || typeof raw !== "object"
-        || ["enabled", "canWrite", "autoFollow"].some(key => key in raw && typeof raw[key] !== "boolean")
-        || ["recordIds", "recordLedger", "onlyTunnels", "skipTunnels"].some(key => key in raw && !Array.isArray(raw[key]))) throw new Error("Invalid configuration");
-    } catch (error) {
-      if (error.code !== "ENOENT") throw new Error("域名配置无法读取，已停止写入。请检查配置文件或从备份恢复。");
-    }
-    const config = { ...DEFAULT_CONFIG, ...raw };
+    const stored = readJsonWithRecoverySync(file, {
+      backupPaths: [`${file}.previous`, `${file}.bak`, `${file}.backup`],
+      validate: validateStoredConfig,
+      onRecover: ({ backupPath, archivePath }) => {
+        try {
+          const warning = this.logger?.warn?.(`域名配置已损坏，已从 ${path.basename(backupPath)} 自动恢复${archivePath ? `；损坏文件保留为 ${path.basename(archivePath)}` : ""}。`);
+          warning?.catch?.(() => {});
+        } catch { /* Recovery must not fail because logging failed. */ }
+      },
+    });
+    const raw = stored.value || {};
+    const runtime = this.readRuntime(instanceId);
+    const config = {
+      ...DEFAULT_CONFIG,
+      ...raw,
+      lastCheckAt: runtime.lastCheckAt || "",
+      lastError: runtime.lastError || "",
+    };
     if (!Number.isInteger(config.checkIntervalSeconds) || config.checkIntervalSeconds < 5 || config.checkIntervalSeconds > 3600)
       throw new Error("域名检查间隔无效，已停止自动写入。请设置为 5–3600 秒。");
     return config;
   }
 
+  readRuntime(instanceId) {
+    if (this.runtime.has(instanceId)) return this.runtime.get(instanceId);
+    let value = { ...DEFAULT_RUNTIME };
+    try {
+      const raw = parseJsonText(fs.readFileSync(this.runtimePath(instanceId), "utf8"));
+      if (raw && !Array.isArray(raw) && typeof raw === "object") {
+        value = {
+          lastCheckAt: typeof raw.lastCheckAt === "string" ? raw.lastCheckAt : "",
+          lastError: typeof raw.lastError === "string" ? raw.lastError : "",
+        };
+      }
+    } catch { /* Runtime status is disposable and can be rebuilt. */ }
+    this.runtime.set(instanceId, value);
+    return value;
+  }
+
+  writeRuntime(instanceId, patch, { force = false } = {}) {
+    const previous = this.readRuntime(instanceId);
+    const next = { ...previous, ...patch };
+    this.runtime.set(instanceId, next);
+    const now = Date.now();
+    const lastPersistedAt = this.runtimePersistedAt.get(instanceId) || 0;
+    const changedError = Object.prototype.hasOwnProperty.call(patch, "lastError") && patch.lastError !== previous.lastError;
+    if (!force && !changedError && now - lastPersistedAt < 60_000) return next;
+    writeJsonAtomicSync(this.runtimePath(instanceId), next, {
+      validate(value) {
+        if (!value || Array.isArray(value) || typeof value !== "object") throw new Error("运行状态格式不正确");
+      },
+    });
+    this.runtimePersistedAt.set(instanceId, now);
+    return next;
+  }
+
   write(instanceId, patch) {
     const file = this.configPath(instanceId);
     const next = { ...this.read(instanceId), ...patch };
-    const temporary = `${file}.${process.pid}.tmp`;
-    fs.writeFileSync(temporary, `${JSON.stringify(next, null, 2)}\n`, "utf8");
-    fs.renameSync(temporary, file);
+    delete next.lastCheckAt;
+    delete next.lastError;
+    validateStoredConfig(next);
+    writeJsonAtomicSync(file, next, {
+      backupPaths: [`${file}.previous`],
+      validate: validateStoredConfig,
+    });
     return next;
   }
 
@@ -451,12 +524,14 @@ class DomainBindingService {
       }
       // Keep the current managed record in the ledger even when adopted unchanged.
       if (p.currentId && !ledger.some(x => x.id === p.currentId)) ledger.push({ id: p.currentId, zoneId: p.zoneId });
-      this.write(instanceId, { lastSyncAt: new Date().toISOString(), lastCheckAt: new Date().toISOString(),
-        lastError: "", lastSummary: summary, recordLedger: ledger, recordIds: [], recordZone: "" });
+      const checkedAt = new Date().toISOString();
+      this.write(instanceId, { lastSyncAt: checkedAt,
+        lastSummary: summary, recordLedger: ledger, recordIds: [], recordZone: "" });
+      this.writeRuntime(instanceId, { lastCheckAt: checkedAt, lastError: "" }, { force: true });
       return { ...p, applied: Object.values(summary).some(Boolean), summary };
     } catch (error) {
       if (error.configurationChanged) return { applied: false, action: "paused", reason: error.message };
-      this.write(instanceId, { lastCheckAt: new Date().toISOString(), lastError: error.message });
+      this.writeRuntime(instanceId, { lastCheckAt: new Date().toISOString(), lastError: error.message }, { force: true });
       throw error;
     }
   }
@@ -479,7 +554,7 @@ class DomainBindingService {
               const targetFingerprint = this.fingerprint(cfg) + JSON.stringify(desired.record);
               if (state.targetFingerprint === targetFingerprint) {
                 this.automatic.set(instance.id, { ...state, failures: 0, nextAt: now() + cfg.checkIntervalSeconds * 1000 });
-                this.write(instance.id, { lastCheckAt: new Date(now()).toISOString(), lastError: "" });
+                this.writeRuntime(instance.id, { lastCheckAt: new Date(now()).toISOString(), lastError: "" });
                 continue;
               }
               const result = await this.sync(instance.id, { automatic: true, shouldContinue: () => !stopped });
@@ -490,7 +565,7 @@ class DomainBindingService {
               const failures = state.failures + 1;
               const retryMs = Math.min(Math.max(30000, cfg.checkIntervalSeconds * 1000) * 2 ** Math.min(failures - 1, 5), 900000);
               this.automatic.set(instance.id, { ...state, failures, nextAt: now() + retryMs });
-              this.write(instance.id, { lastCheckAt: new Date().toISOString(), lastError: error.message });
+              this.writeRuntime(instance.id, { lastCheckAt: new Date().toISOString(), lastError: error.message }, { force: true });
               await this.logger?.warn(`域名自动跟随失败 (${instance.id}): ${error.message}`);
             }
           } catch (error) {

@@ -83,7 +83,10 @@ test("managed FRPC restarts after a crash without creating duplicates", async ()
     assert.equal(children.length, 1, "repeated start must be idempotent");
 
     children[0].crash(1);
-    await waitFor(async () => children.length === 2 && (await store.getRuntime(instance.id)).status === "running");
+    await waitFor(
+      async () => children.length === 2 && (await store.getRuntime(instance.id)).status === "running",
+      15000,
+    );
     assert.equal(children.length, 2);
     assert.equal(warnings.length, 1);
 

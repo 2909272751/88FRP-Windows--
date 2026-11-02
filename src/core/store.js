@@ -5,6 +5,19 @@ const crypto = require("crypto");
 const { DEFAULT_AUTO_SYNC_INTERVAL_MS, DEFAULT_REMOTE_URL } = require("../shared/constants");
 const { RotatingLogWriter, readLogTail } = require("../shared/log-files");
 
+async function fsyncDirectory(directory) {
+  let handle = null;
+  try {
+    handle = await fsp.open(directory, "r");
+    await handle.sync();
+  } catch {
+    // Windows can deny directory handles; the temporary file is still synced
+    // before it is renamed into place.
+  } finally {
+    await handle?.close().catch(() => {});
+  }
+}
+
 const DEFAULT_SETTINGS = {
   defaultRemoteUrl: DEFAULT_REMOTE_URL,
   apiTimeout: 10_000,
@@ -140,7 +153,9 @@ class Store {
     const write = previous.catch(() => {}).then(async () => {
       const temporary = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
       try {
-        await fsp.writeFile(temporary, contents, { encoding: "utf8", flag: "wx" });
+        await fsp.writeFile(temporary, contents, { encoding: "utf8", flag: "wx", mode: 0o600 });
+        const handle = await fsp.open(temporary, "r+");
+        try { await handle.sync(); } finally { await handle.close(); }
         for (let attempt = 0; ; attempt++) {
           try { await fsp.rename(temporary, filePath); break; }
           catch (error) {
@@ -148,6 +163,7 @@ class Store {
             await new Promise(resolve => setTimeout(resolve, 20));
           }
         }
+        await fsyncDirectory(path.dirname(filePath));
       } finally {
         await fsp.rm(temporary, { force: true }).catch(() => {});
       }

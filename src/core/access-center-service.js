@@ -722,6 +722,9 @@ function createAccessCenterApp(service) {
   const app = express();
   const publicDir = getPublicDir();
   const accessDir = path.join(publicDir, "access");
+  const sendPublicFile = (res, next, fileName, root = publicDir) => {
+    res.sendFile(fileName, { root }, (error) => { if (error) next(error); });
+  };
   let speedTestRunning = false;
   app.disable("x-powered-by");
   app.use(express.json({ limit: "32kb" }));
@@ -789,10 +792,10 @@ function createAccessCenterApp(service) {
     const timer = setInterval(send, 3_000);
     req.on("close", () => clearInterval(timer));
   });
-  app.get("/access/88frp-logo.png", (_req, res) => res.sendFile(path.join(publicDir, "88frp-logo.png")));
-  app.get("/access/lucide.css", (_req, res) => res.sendFile(path.join(publicDir, "css", "lucide.css")));
-  app.get("/access/lucide.woff2", (_req, res) => res.sendFile(path.join(publicDir, "css", "lucide.woff2")));
-  app.get(["/access", "/access/"], (_req, res) => res.sendFile(path.join(accessDir, "index.html")));
+  app.get("/access/88frp-logo.png", (_req, res, next) => sendPublicFile(res, next, "88frp-logo.png"));
+  app.get("/access/lucide.css", (_req, res, next) => sendPublicFile(res, next, "css/lucide.css"));
+  app.get("/access/lucide.woff2", (_req, res, next) => sendPublicFile(res, next, "css/lucide.woff2"));
+  app.get(["/access", "/access/"], (_req, res, next) => sendPublicFile(res, next, "index.html", accessDir));
   app.use("/access", express.static(accessDir, { index: false }));
   app.use((error, _req, res, _next) => {
     res.status(400).json({ success: false, message: error.message || "访问中心请求失败。", data: null });
