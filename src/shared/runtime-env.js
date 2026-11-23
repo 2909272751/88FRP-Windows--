@@ -85,19 +85,50 @@ function getDefaultFrpcBinaryPath() {
   return isSeaRuntime() ? getRuntimeFrpcBinaryPath() : getSourceFrpcBinaryPath();
 }
 
+function getDefaultCaddyBinaryName() {
+  return process.platform === "win32" ? "caddy.exe" : "caddy";
+}
+
+function getSourceCaddyBinaryPath() {
+  return path.join(getSourceProjectRoot(), "bin", getArchDir(), getDefaultCaddyBinaryName());
+}
+
+function getPackagedCaddyBinaryPath() {
+  return path.join(path.dirname(process.execPath), getDefaultCaddyBinaryName());
+}
+
+function getDefaultCaddyBinaryPath() {
+  const candidates = [
+    getPackagedCaddyBinaryPath(),
+    getSourceCaddyBinaryPath(),
+  ];
+  for (const candidate of candidates) {
+    try {
+      if (require("fs").existsSync(candidate)) return candidate;
+    } catch {
+      // Continue to the next candidate.
+    }
+  }
+  return candidates[candidates.length - 1];
+}
+
 module.exports = {
   APP_SLUG,
   getAppBaseDir,
   getArchDir,
+  getDefaultCaddyBinaryName,
+  getDefaultCaddyBinaryPath,
   getDefaultDataDir,
   getDefaultFrpcBinaryName,
   getDefaultFrpcBinaryPath,
+  getPackagedCaddyBinaryPath,
   getProjectRoot,
   getPublicDir,
   getRuntimeFrpcBinaryPath,
   getRuntimePublicDir,
   getRuntimeRoot,
   getSeaModule,
+  getSourceCaddyBinaryPath,
   getSourceProjectRoot,
   isSeaRuntime,
 };

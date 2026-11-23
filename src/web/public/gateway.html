@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f7f9">
+  <title>88FRP 统一入口</title>
+  <link rel="stylesheet" href="/css/lucide.css">
+  <link rel="stylesheet" href="/css/style.css?v=3.7.0">
+  <link rel="stylesheet" href="/css/gateway5.css?v=3.7.0">
+</head>
+<body class="gateway-page">
+  <div class="app-backdrop"></div>
+  <div id="busyIndicator" class="busy-indicator" aria-hidden="true"></div>
+
+  <div class="gateway-shell">
+    <aside class="gateway-rail" aria-label="统一入口导航">
+      <div class="gateway-brand">
+        <img src="/88frp-logo.png" class="brand-logo" alt="">
+        <div class="brand-copy">
+          <strong>88FRP</strong>
+          <span>远程入口</span>
+        </div>
+        <span class="rail-live" id="railStatusChip" title="正在连接">
+          <span class="rail-live-dot"></span>
+          <span class="sr-only" id="railStatusText">正在连接</span>
+        </span>
+      </div>
+
+      <nav class="rail-nav" id="gatewayNav">
+        <button class="rail-nav-item is-active" data-view="overview" type="button">
+          <i class="icon-house" aria-hidden="true"></i><span>概览</span>
+        </button>
+        <button class="rail-nav-item" data-view="services" type="button">
+          <i class="icon-server" aria-hidden="true"></i><span>服务</span>
+        </button>
+        <button class="rail-nav-item" data-view="remote" type="button">
+          <i class="icon-monitor" aria-hidden="true"></i><span>远程访问</span>
+        </button>
+        <button class="rail-nav-item" data-view="settings" type="button">
+          <i class="icon-settings" aria-hidden="true"></i><span>设置</span>
+        </button>
+      </nav>
+
+      <div class="rail-footer">
+        <button class="rail-link" id="btnLogout" type="button">
+          <i class="icon-log-out" aria-hidden="true"></i><span>退出登录</span>
+        </button>
+        <span class="rail-version">v3.7.0</span>
+        <a class="rail-link rail-link-hidden" id="railPortalLink" href="/portal" target="_blank" rel="noopener" hidden>公开导航</a>
+      </div>
+    </aside>
+
+    <main class="gateway-main">
+      <header class="gateway-topbar">
+        <div class="gateway-topbar-context">
+          <span class="topbar-page-mark"><i class="icon-shield-check" aria-hidden="true"></i></span>
+          <strong id="topDeviceName">管理控制台</strong>
+          <span class="topbar-secure">仅限授权用户</span>
+        </div>
+        <div class="gateway-topbar-actions">
+          <span class="connection-pill" id="connectionPill">
+            <i class="icon-wifi" aria-hidden="true"></i>
+            <span id="connectionText">正在判断连接方式</span>
+          </span>
+          <button class="icon-button" id="btnRefresh" type="button" title="刷新状态" aria-label="刷新状态">
+            <i class="icon-refresh-cw" aria-hidden="true"></i>
+          </button>
+          <button class="icon-button" id="btnTheme" type="button" title="切换主题" aria-label="切换主题">
+            <i class="icon-moon" aria-hidden="true"></i>
+          </button>
+          <a class="icon-button" id="btnOpenPortal" href="/portal" target="_blank" rel="noopener" title="打开公开导航" aria-label="打开公开导航">
+            <i class="icon-arrow-up-right" aria-hidden="true"></i>
+          </a>
+        </div>
+      </header>
+
+      <div class="gateway-content" id="gatewayContent">
+        <div class="gateway-loading" id="gatewayLoading">
+          <span class="loading-orbit" id="gatewayLoadingIcon"><i class="icon-route" aria-hidden="true"></i></span>
+          <strong id="gatewayLoadingTitle">正在读取设备配置</strong>
+          <span id="gatewayLoadingDetail">正在整理服务入口与网络状态。</span>
+          <div class="gateway-loading-actions" id="gatewayLoadingActions" hidden>
+            <button class="filled-button" id="btnRetryGatewayLoad" type="button">
+              <i class="icon-refresh-cw" aria-hidden="true"></i><span>重试</span>
+            </button>
+            <a class="outline-button" href="/login">
+              <i class="icon-log-in" aria-hidden="true"></i><span>重新登录</span>
+            </a>
+          </div>
+        </div>
+
+        <section class="onboarding-view" id="onboardingView" hidden>
+          <div class="onboarding-grid">
+            <section class="gateway-card onboarding-card">
+              <div class="gateway-card-heading">
+                <div>
+                  <span class="eyebrow">已有安装</span>
+                  <h2>导入这台电脑的现有配置</h2>
+                </div>
+                <i class="icon-archive" aria-hidden="true"></i>
+              </div>
+              <p class="muted-copy">自动读取本机已有配置，并把可识别的网页和远程连接整理成统一入口。原配置会保留，不会删除。</p>
+              <form id="migrateForm" class="gateway-form">
+                <label class="field-block">
+                  <span>现有配置</span>
+                  <select id="migrateInstance" required></select>
+                </label>
+                <div class="field-row">
+                  <label class="field-block">
+                    <span>设备名称</span>
+                    <input id="migrateDeviceName" maxlength="60" placeholder="例如：主力电脑" required>
+                  </label>
+                  <label class="field-block">
+                    <span>统一入口端口</span>
+                    <input id="migrateGatewayPort" type="number" min="1" max="65535" value="7777" required>
+                  </label>
+                </div>
+                <label class="field-block">
+                  <span>设备域名</span>
+                  <input id="migrateDomain" placeholder="例如：xps.example.com" required>
+                </label>
+                <label class="switch-row compact-switch" for="migrateImportServices">
+                  <span class="switch-copy"><strong>导入已有服务</strong><span>网页会自动加入导航，远程连接会保留独立端口。</span></span>
+                  <span class="material-switch"><input id="migrateImportServices" type="checkbox" checked><span class="switch-track"><span class="switch-thumb"></span></span></span>
+                </label>
+                <button class="filled-button form-submit" id="btnMigrate" type="submit">
+                  <i class="icon-route" aria-hidden="true"></i><span>开始使用</span>
+                </button>
+              </form>
+              <p class="form-message" id="migrateMessage" role="status"></p>
+            </section>
+
+            <section class="gateway-card onboarding-card">
+              <div class="gateway-card-heading">
+                <div>
+                  <span class="eyebrow">首次使用</span>
+                  <h2>连接一台新设备</h2>
+                </div>
+                <i class="icon-key-round" aria-hidden="true"></i>
+              </div>
+              <p class="muted-copy">没有现有配置时，用 88FRP 同步密钥连接这台设备。密钥只保存在本机，不会回显。</p>
+              <form id="bootstrapForm" class="gateway-form">
+                <div class="field-row">
+                  <label class="field-block">
+                    <span>设备名称</span>
+                    <input id="bootstrapDeviceName" maxlength="60" placeholder="例如：XPS 主机" required>
+                  </label>
+                  <label class="field-block">
+                    <span>统一入口端口</span>
+                    <input id="bootstrapGatewayPort" type="number" min="1" max="65535" value="7777" required>
+                  </label>
+                </div>
+                <label class="field-block">
+                  <span>设备域名</span>
+                  <input id="bootstrapDomain" placeholder="例如：xps.example.com" required>
+                </label>
+                <label class="field-block">
+                  <span>88FRP 同步密钥</span>
+                  <input id="bootstrapSecret" type="password" autocomplete="off" required>
+                </label>
+                <label class="field-block">
+                  <span>连接地址（可选）</span>
+                  <input id="bootstrapRemoteUrl" placeholder="留空使用默认 88FRP 地址">
+                </label>
+                <button class="outline-button form-submit" id="btnBootstrap" type="submit">
+                  <i class="icon-plus" aria-hidden="true"></i><span>创建并初始化</span>
+                </button>
+              </form>
+              <p class="form-message" id="bootstrapMessage" role="status"></p>
+            </section>
+          </div>
+
+          <div class="binary-notice" id="binaryNotice" hidden>
+            <i class="icon-circle-alert" aria-hidden="true"></i>
+            <div><strong>HTTPS 组件尚未就绪</strong><span>重新启动程序后会自动检查；如仍不可用，请打开桌面端运行状态页处理。</span></div>
+          </div>
+        </section>
+
+        <div class="gateway-workspace" id="gatewayWorkspace" hidden>
+          <section class="gateway-panel is-active" data-panel="overview">
+            <header class="g36-page-head">
+              <div class="g36-heading-copy">
+                <div class="g36-title-row">
+                  <h1 id="overviewTitle">正在读取设备</h1>
+                  <span class="g36-presence is-loading" id="overviewStatusBadge"><i></i><span>连接中</span></span>
+                </div>
+                <p id="overviewSubtitle">正在整理这台设备的入口和服务。</p>
+              </div>
+            </header>
+
+            <section class="g36-access-card">
+              <div class="g36-access-main">
+                <div class="g36-access-heading">
+                  <div>
+                    <span class="g36-label">公开访问地址</span>
+                    <p>把这一个地址发给需要访问的人，线路会自动选择。</p>
+                  </div>
+                  <span class="g35-chip" id="gatewayPortBadge"><i class="icon-link" aria-hidden="true"></i><span>端口 7777</span></span>
+                </div>
+                <div class="g36-url-row">
+                  <code id="heroUrl">尚未设置域名</code>
+                  <button class="g36-copy-button" id="btnCopyHeroUrl" type="button" title="复制入口地址" aria-label="复制入口地址">
+                    <i class="icon-copy" aria-hidden="true"></i><span>复制</span>
+                  </button>
+                  <a class="g35-primary-button g36-open-button" id="btnVisitHeroUrl" href="#" target="_blank" rel="noopener">
+                    <i class="icon-arrow-up-right" aria-hidden="true"></i><span>打开导航</span>
+                  </a>
+                  <a id="btnVisitHeroUrlSecondary" href="#" hidden></a>
+                </div>
+                <div class="g35-chip-row g36-health-chips">
+                  <span class="g35-chip" id="ipv6Badge"><i class="icon-globe" aria-hidden="true"></i><span>检查 IPv6</span></span>
+                  <span class="g35-chip" id="fallbackBadge"><i class="icon-shield-check" aria-hidden="true"></i><span>IPv4 备用</span></span>
+                </div>
+                <div class="g36-route-grid" aria-label="网页访问线路">
+                  <article class="g36-route-card is-v6">
+                    <div class="g36-route-head">
+                      <span class="g36-route-icon"><i class="icon-globe" aria-hidden="true"></i></span>
+                      <div><strong>IPv6 专用</strong><span>只走 IPv6，速度最快</span></div>
+                    </div>
+                    <code id="webV6Url">等待检测</code>
+                    <div class="g36-route-actions">
+                      <button class="g36-text-button" id="btnCopyWebV6" type="button"><i class="icon-copy" aria-hidden="true"></i>复制</button>
+                      <a class="g36-text-button" id="btnOpenWebV6" href="#" target="_blank" rel="noopener"><i class="icon-arrow-up-right" aria-hidden="true"></i>打开</a>
+                    </div>
+                  </article>
+                  <article class="g36-route-card is-v4">
+                    <div class="g36-route-head">
+                      <span class="g36-route-icon"><i class="icon-shield-check" aria-hidden="true"></i></span>
+                      <div><strong>IPv4 专用</strong><span>没有 IPv6 时自动兜底</span></div>
+                    </div>
+                    <code id="webV4Url">等待检测</code>
+                    <div class="g36-route-actions">
+                      <button class="g36-text-button" id="btnCopyWebV4" type="button"><i class="icon-copy" aria-hidden="true"></i>复制</button>
+                      <a class="g36-text-button" id="btnOpenWebV4" href="#" target="_blank" rel="noopener"><i class="icon-arrow-up-right" aria-hidden="true"></i>打开</a>
+                    </div>
+                  </article>
+                </div>
+              </div>
+              <aside class="g36-access-status">
+                <div class="g36-status-head">
+                  <span class="health-dot" id="healthDot"></span>
+                  <div><strong id="healthTitle">正在检查</strong><span id="healthDetail">正在确认服务入口和备用通道。</span></div>
+                </div>
+                <dl class="g36-facts">
+                  <div><dt>当前连接</dt><dd id="healthConnection">检测中</dd></div>
+                  <div><dt>线路策略</dt><dd>IPv6 优先</dd></div>
+                  <div><dt>IPv6 地址</dt><dd id="healthIpv6">检测中</dd></div>
+                  <div><dt>IPv4 备用</dt><dd id="healthFallback">检查中</dd></div>
+                  <div><dt>上次变更</dt><dd id="healthSyncAt">尚未同步</dd></div>
+                </dl>
+                <p class="g36-status-note"><i class="icon-info" aria-hidden="true"></i>地址变化后会自动同步，不需要每天维护。</p>
+              </aside>
+            </section>
+
+            <section class="g35-section">
+              <div class="g35-section-head">
+                <div>
+                  <h2>服务</h2>
+                  <p id="statServiceHint">正在读取服务。</p>
+                </div>
+                <button class="g35-link-button" id="btnManageServices" type="button"><span>管理全部</span><i class="icon-arrow-right" aria-hidden="true"></i></button>
+              </div>
+              <div class="g35-service-grid" id="overviewServices"></div>
+            </section>
+
+            <section class="gateway-card setup-card" id="setupCard" hidden>
+              <div class="gateway-card-heading">
+                <div><span class="eyebrow">还差几步</span><h2>完成设置后即可从公网使用</h2></div>
+                <span class="status-chip" id="setupProgress">0 / 4</span>
+              </div>
+              <div class="setup-list" id="setupList"></div>
+            </section>
+
+            <section class="danger-stack" id="warningStack" hidden>
+              <div class="warning-banner" id="gatewayWarnings"></div>
+            </section>
+
+            <div hidden aria-hidden="true">
+              <span id="statIpv6"></span>
+              <span id="statIpv6Hint"></span>
+              <span id="statCaddy"></span>
+              <span id="statCaddyHint"></span>
+              <span id="statFrpc"></span>
+              <span id="statFrpcHint"></span>
+              <span id="routePort"></span>
+              <strong id="statHttpServices"></strong>
+            </div>
+          </section>
+
+          <section class="gateway-panel" data-panel="services">
+            <header class="g36-page-head">
+              <div>
+                <h1>服务</h1>
+                <p>网页服务会自动出现在公开导航页；远程桌面和 SSH 在“远程访问”中统一管理。</p>
+              </div>
+              <button class="g35-primary-button" id="btnAddService" type="button"><i class="icon-plus" aria-hidden="true"></i><span>添加服务</span></button>
+            </header>
+
+            <div class="g35-toolbar">
+              <div class="g35-toolbar-copy"><span>新增网页服务只需填写本机端口，域名与 HTTPS 自动配置。</span><code id="serviceUrlExample" hidden></code></div>
+              <span class="status-chip" id="serviceCountChip">0 个服务</span>
+            </div>
+
+            <div class="g35-service-list" id="serviceList"></div>
+            <div class="g35-empty-card" id="serviceEmpty" hidden>
+              <span class="g35-empty-icon"><i class="icon-server" aria-hidden="true"></i></span>
+              <h2>还没有网页服务</h2>
+              <p>先启动本机应用，再把它的本地端口加入统一入口。</p>
+              <button class="g35-tonal-button" id="btnAddServiceEmpty" type="button"><i class="icon-plus" aria-hidden="true"></i><span>添加第一个服务</span></button>
+            </div>
+          </section>
+
+          <section class="gateway-panel" data-panel="remote">
+            <header class="g36-page-head">
+              <div>
+                <h1>远程访问</h1>
+                <p>远程桌面与 SSH 集中在这里；日常用自动线路，排障时再切换到 IPv6 或 IPv4 专用线路。</p>
+              </div>
+            </header>
+
+            <div class="g36-remote-grid">
+              <section class="g36-remote-card">
+                <div class="g36-remote-heading">
+                  <span class="g36-remote-icon"><i class="icon-monitor" aria-hidden="true"></i></span>
+                  <div><h2>远程桌面</h2><p>Windows 远程桌面连接</p></div>
+                  <span class="status-chip" id="rdpChip">检测中</span>
+                </div>
+                <p class="g36-remote-note">登录使用这台电脑的 Microsoft 账户邮箱和账户密码，不能使用 PIN。</p>
+                <div class="g36-endpoint-stack">
+                  <div class="g36-endpoint is-primary">
+                    <div class="g36-endpoint-head"><div><span>自动线路</span><small>推荐 · 自动选择 IPv6 或 IPv4</small></div><button class="g36-copy-button" id="btnCopyRdpProxy" type="button"><i class="icon-copy" aria-hidden="true"></i><span>复制</span></button></div>
+                    <code id="rdpProxyCommand">正在读取域名端口…</code>
+                  </div>
+                  <div class="g36-endpoint-pair">
+                    <div class="g36-endpoint is-v6">
+                      <div class="g36-endpoint-head"><div><span>IPv6 专用</span><small>强制直连</small></div><button class="g35-icon-button" id="btnCopyRdpCommand" type="button" aria-label="复制 IPv6 远程桌面地址"><i class="icon-copy" aria-hidden="true"></i></button></div>
+                      <code id="rdpCommand">正在读取 IPv6 地址…</code>
+                    </div>
+                    <div class="g36-endpoint is-v4">
+                      <div class="g36-endpoint-head"><div><span>IPv4 专用</span><small>88FRP 兜底</small></div><button class="g35-icon-button" id="btnCopyRdpCommandV4" type="button" aria-label="复制 IPv4 远程桌面地址"><i class="icon-copy" aria-hidden="true"></i></button></div>
+                      <code id="rdpCommandV4">正在读取 IPv4 地址…</code>
+                    </div>
+                  </div>
+                </div>
+                <div class="g36-callout"><i class="icon-lightbulb" aria-hidden="true"></i><span>在 Windows 搜索“远程桌面连接”，粘贴地址后输入账户密码即可。</span></div>
+              </section>
+
+              <section class="g36-remote-card">
+                <div class="g36-remote-heading">
+                  <span class="g36-remote-icon is-teal"><i class="icon-terminal" aria-hidden="true"></i></span>
+                  <div><h2>SSH</h2><p>命令行安全登录</p></div>
+                  <span class="status-chip" id="sshChip">未启用</span>
+                </div>
+                <p class="g36-remote-note">把命令中的 <code>&lt;用户名&gt;</code> 换成这台电脑的 Windows 登录名。</p>
+                <div class="g36-endpoint-stack">
+                  <div class="g36-endpoint is-primary">
+                    <div class="g36-endpoint-head"><div><span>自动线路</span><small>推荐 · 自动选择 IPv6 或 IPv4</small></div><button class="g35-icon-button" id="btnCopySshAuto" type="button" aria-label="复制 SSH 自动地址"><i class="icon-copy" aria-hidden="true"></i></button></div>
+                    <code id="sshEndpoint">未启用</code>
+                  </div>
+                  <div class="g36-endpoint-pair">
+                    <div class="g36-endpoint is-v6">
+                      <div class="g36-endpoint-head"><div><span>IPv6 专用</span><small>只解析 IPv6</small></div><button class="g35-icon-button" id="btnCopySshV6" type="button" aria-label="复制 SSH IPv6 地址"><i class="icon-copy" aria-hidden="true"></i></button></div>
+                      <code id="sshEndpointV6">未启用</code>
+                    </div>
+                    <div class="g36-endpoint is-v4">
+                      <div class="g36-endpoint-head"><div><span>IPv4 专用</span><small>88FRP 兜底</small></div><button class="g35-icon-button" id="btnCopySshV4" type="button" aria-label="复制 SSH IPv4 地址"><i class="icon-copy" aria-hidden="true"></i></button></div>
+                      <code id="sshEndpointV4">未启用</code>
+                    </div>
+                  </div>
+                </div>
+                <div class="g36-remote-foot">
+                  <span id="sshOnline">-</span>
+                  <button class="g36-text-button" id="btnToggleSshSettings" type="button"><i class="icon-settings-2" aria-hidden="true"></i>SSH 设置</button>
+                </div>
+                <div class="g36-ssh-settings" id="sshSettings" hidden>
+                  <form id="sshForm" class="gateway-form">
+                    <label class="switch-row compact-switch" for="sshEnabled">
+                      <span class="switch-copy"><strong>启用 SSH 入口</strong><span>同时提供自动、IPv6 专用和 IPv4 专用地址。</span></span>
+                      <span class="material-switch"><input id="sshEnabled" type="checkbox"><span class="switch-track"><span class="switch-thumb"></span></span></span>
+                    </label>
+                    <div class="field-row">
+                      <label class="field-block"><span>本地地址</span><input id="sshLocalHost" value="127.0.0.1"></label>
+                      <label class="field-block"><span>本地 SSH 端口</span><input id="sshLocalPort" type="number" min="1" max="65535" value="22"></label>
+                    </div>
+                    <label class="field-block"><span>公网统一端口</span><input id="sshRemotePort" type="number" min="1" max="65535" placeholder="例如 22022"></label>
+                    <p class="muted-copy">建议使用一个不同于 22 的公网端口，减少扫描和误连接。</p>
+                    <button class="g35-tonal-button form-submit" id="btnSaveSsh" type="submit"><i class="icon-save" aria-hidden="true"></i><span>保存 SSH 设置</span></button>
+                  </form>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section class="gateway-panel" data-panel="settings">
+            <header class="g36-page-head">
+              <div>
+                <h1>设置</h1>
+                <p>日常只需要维护设备名称、域名和自动启动。网络、防火墙和诊断信息都已收进高级设置。</p>
+              </div>
+            </header>
+
+            <div class="g35-settings-grid">
+              <section class="g35-card">
+                <div class="g35-card-heading">
+                  <div><span class="g35-eyebrow">基础信息</span><h2>设备</h2></div>
+                  <i class="icon-monitor" aria-hidden="true"></i>
+                </div>
+                <form id="deviceForm" class="gateway-form">
+                  <div class="field-row">
+                    <label class="field-block"><span>设备名称</span><input id="deviceName" maxlength="60" required></label>
+                    <label class="field-block"><span>统一入口端口</span><input id="deviceGatewayPort" type="number" min="1" max="65535" required></label>
+                  </div>
+                  <label class="field-block"><span>设备域名</span><input id="deviceDomain" placeholder="xps.example.com" required></label>
+                  <label class="switch-row compact-switch" for="deviceAutoStart">
+                    <span class="switch-copy"><strong>开机自动启动</strong><span>登录 Windows 后自动恢复统一入口和远程访问。</span></span>
+                    <span class="material-switch"><input id="deviceAutoStart" type="checkbox"><span class="switch-track"><span class="switch-thumb"></span></span></span>
+                  </label>
+                  <button class="g35-primary-button form-submit" id="btnSaveDevice" type="submit"><i class="icon-save" aria-hidden="true"></i><span>保存设备设置</span></button>
+                </form>
+
+                <details class="g35-details g35-details-inner">
+                  <summary><span><i class="icon-globe" aria-hidden="true"></i>网络与 IPv6</span><i class="icon-chevron-down" aria-hidden="true"></i></summary>
+                  <div class="g35-detail-body">
+                    <div class="field-row">
+                      <label class="field-block"><span>IPv6 来源</span><select id="deviceIpv6Mode"><option value="auto">自动检测本机公网 IPv6</option><option value="manual">手动指定</option></select></label>
+                      <label class="field-block"><span>手动 IPv6</span><input id="deviceManualIpv6" placeholder="留空则使用自动检测"></label>
+                    </div>
+                  </div>
+                </details>
+              </section>
+
+              <section class="g35-card">
+                <div class="g35-card-heading">
+                  <div><span class="g35-eyebrow">自动续期</span><h2>域名与证书</h2></div>
+                  <span class="status-chip" id="cloudflareChip">未授权</span>
+                </div>
+                <p class="muted-copy">地址变化后会自动同步解析记录，证书也会自动续期。</p>
+                <div class="g37-domain-zone">
+                  <span class="g37-domain-icon"><i class="icon-shield-check" aria-hidden="true"></i></span>
+                  <div><span>托管域名</span><strong id="cloudflareZone">未配置</strong></div>
+                  <span class="g37-domain-state" id="cloudflareState">等待授权</span>
+                </div>
+                <div class="g37-domain-facts">
+                  <div><span>上次变更</span><strong id="cloudflareChecked">-</strong></div>
+                  <div><span>证书</span><strong>自动续期</strong></div>
+                  <div><span>解析记录</span><strong id="cloudflareRecords">-</strong></div>
+                  <div><span>同步结果</span><strong id="cloudflareSummary">-</strong></div>
+                </div>
+                <div class="inline-error" id="cloudflareError" hidden></div>
+                <div class="g35-inline-actions">
+                  <button class="g35-tonal-button" id="btnSyncDns" type="button"><i class="icon-refresh-cw" aria-hidden="true"></i><span>立即同步解析</span></button>
+                </div>
+                <details class="g35-details g35-details-inner" id="domainTokenDetails">
+                  <summary><span><i class="icon-key-round" aria-hidden="true"></i>域名授权设置</span><i class="icon-chevron-down" aria-hidden="true"></i></summary>
+                  <div class="g35-detail-body">
+                    <p class="muted-copy">只有更换域名或授权失效时才需要重新填写。授权码只保存在本机，不会回显。</p>
+                    <form id="tokenForm" class="gateway-form">
+                      <label class="field-block"><span>域名授权码</span><input id="cloudflareToken" type="password" autocomplete="off" placeholder="粘贴一次即可"></label>
+                      <button class="g35-tonal-button form-submit" id="btnSaveToken" type="submit"><i class="icon-shield-check" aria-hidden="true"></i><span>验证并保存</span></button>
+                    </form>
+                  </div>
+                </details>
+              </section>
+            </div>
+
+            <details class="g35-details">
+              <summary><span><i class="icon-globe" aria-hidden="true"></i>网络地址与 DNS</span><span class="g35-summary-side"><span class="status-chip" id="dnsReadyChip">检查中</span><i class="icon-chevron-down" aria-hidden="true"></i></span></summary>
+              <div class="g35-detail-body">
+                <div class="address-pair">
+                  <div><span>IPv6 直连地址</span><strong id="dnsIpv6">等待检测</strong></div>
+                  <div><span>IPv4 备用地址</span><strong id="dnsIpv4">等待同步</strong></div>
+                </div>
+                <details class="g35-details g35-details-inner">
+                  <summary><span><i class="icon-list" aria-hidden="true"></i>查看 DNS 记录</span><i class="icon-chevron-down" aria-hidden="true"></i></summary>
+                  <div class="dns-table" id="dnsTable"></div>
+                  <p class="footnote">IPv6 地址变化后自动更新，平时无需手动操作。</p>
+                </details>
+              </div>
+            </details>
+
+            <details class="g35-details">
+              <summary><span><i class="icon-settings-2" aria-hidden="true"></i>高级与诊断</span><i class="icon-chevron-down" aria-hidden="true"></i></summary>
+              <div class="g35-detail-body">
+                <div class="g35-inline-actions">
+                  <button class="g35-tonal-button" id="btnSyncSource" type="button"><i class="icon-refresh-cw" aria-hidden="true"></i><span>重新连接来源</span></button>
+                  <button class="g35-tonal-button" id="btnRestartGateway" type="button"><i class="icon-rotate-ccw" aria-hidden="true"></i><span>重启服务入口</span></button>
+                </div>
+                <section class="g36-firewall-card">
+                  <div class="g36-firewall-head">
+                    <div>
+                      <span class="g36-kicker">入站访问</span>
+                      <h3>Windows 防火墙</h3>
+                      <p>不会关闭 Windows 防火墙，只管理 88FRP 需要的放行端口。</p>
+                    </div>
+                    <span class="status-chip" id="firewallChip">检查中</span>
+                  </div>
+                  <div class="g36-firewall-grid">
+                    <div><span>防火墙状态</span><strong id="firewallTcp">-</strong></div>
+                    <div><span>UDP 服务</span><strong id="firewallUdp">-</strong></div>
+                    <div><span>说明</span><strong id="firewallDetail">-</strong></div>
+                  </div>
+                  <button class="g35-tonal-button" id="btnOpenFirewall" type="button"><i class="icon-shield-check" aria-hidden="true"></i><span>开放所需端口</span></button>
+                </section>
+                <div class="runtime-grid">
+                  <section class="runtime-card" id="caddyRuntimeCard">
+                    <div class="runtime-card-head"><span class="runtime-icon"><i class="icon-shield-check" aria-hidden="true"></i></span><div><span>网页访问</span><strong id="caddyRuntimeState">未启动</strong></div></div>
+                    <dl><div><dt>用途</dt><dd id="caddyPid">网页访问与证书</dd></div><div><dt>状态</dt><dd id="caddyBinary">-</dd></div></dl>
+                    <p id="caddyError">证书和网页服务状态。</p>
+                  </section>
+                  <section class="runtime-card" id="frpcRuntimeCard">
+                    <div class="runtime-card-head"><span class="runtime-icon teal"><i class="icon-waypoints" aria-hidden="true"></i></span><div><span>IPv4 备用通道</span><strong id="frpcRuntimeState">未启动</strong></div></div>
+                    <dl><div><dt>用途</dt><dd id="frpcPid">无 IPv6 时接管</dd></div><div><dt>状态</dt><dd id="frpcBinary">-</dd></div></dl>
+                    <p id="frpcError">IPv4 网络下自动使用备用通道。</p>
+                  </section>
+                  <section class="runtime-card" id="sourceRuntimeCard">
+                    <div class="runtime-card-head"><span class="runtime-icon amber"><i class="icon-database" aria-hidden="true"></i></span><div><span>后台连接</span><strong id="sourceState">未知</strong></div></div>
+                    <dl><div><dt>设备</dt><dd id="sourceName">-</dd></div><div><dt>连接</dt><dd id="sourceConfig">-</dd></div></dl>
+                    <p id="sourceError">凭据不会返回浏览器。</p>
+                  </section>
+                </div>
+                <details class="g35-details g35-details-inner">
+                  <summary><span><i class="icon-list" aria-hidden="true"></i>运行记录</span><i class="icon-chevron-down" aria-hidden="true"></i></summary>
+                  <div class="g35-log-head">
+                    <div class="segmented-control" id="logTabs">
+                      <button class="is-active" data-log="audit" type="button">最近活动</button>
+                      <button data-log="caddy" type="button">网页访问</button>
+                      <button data-log="frpc" type="button">备用通道</button>
+                    </div>
+                  </div>
+                  <pre class="gateway-log" id="gatewayLog">正在读取日志…</pre>
+                </details>
+              </div>
+            </details>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <dialog class="service-dialog" id="serviceDialog" aria-labelledby="serviceDialogTitle">
+    <form method="dialog" class="service-dialog-form" id="serviceForm">
+      <header class="dialog-heading">
+        <div><span class="eyebrow">服务</span><h2 id="serviceDialogTitle">添加网页服务</h2></div>
+        <button class="icon-button" id="btnCloseServiceDialog" type="button" aria-label="关闭"><i class="icon-x" aria-hidden="true"></i></button>
+      </header>
+      <input id="serviceId" type="hidden">
+      <div class="field-row">
+        <label class="field-block"><span>类型</span><select id="serviceKind"><option value="http">网页（共享统一入口）</option><option value="tcp">TCP 直通（远程桌面等）</option><option value="udp">UDP（独立端口）</option></select></label>
+        <label class="field-block"><span>服务标识 / 子域名前缀</span><input id="serviceName" maxlength="63" placeholder="例如 alist 或 rdp" required></label>
+      </div>
+      <label class="field-block"><span>显示名称</span><input id="serviceTitle" maxlength="80" placeholder="例如 AList 文件" required></label>
+      <div class="field-row">
+        <label class="field-block"><span>本地地址</span><input id="serviceLocalHost" value="127.0.0.1" required></label>
+        <label class="field-block"><span>本地端口</span><input id="serviceLocalPort" type="number" min="1" max="65535" required></label>
+      </div>
+      <label class="field-block" id="serviceRemotePortField" hidden><span id="serviceRemotePortLabel">公网端口</span><input id="serviceRemotePort" type="number" min="1" max="65535"></label>
+      <p class="muted-copy" id="serviceRemoteHint" hidden>建议公网端口不同于本地端口；相同时会优先复用服务自身的 IPv6 监听。</p>
+      <div class="field-row">
+        <label class="field-block"><span>标签</span><input id="serviceTag" maxlength="24" placeholder="例如 文件"></label>
+        <label class="field-block"><span>说明</span><input id="serviceDescription" maxlength="240" placeholder="可选"></label>
+      </div>
+      <label class="switch-row compact-switch" for="serviceEnabled">
+        <span class="switch-copy"><strong>启用服务</strong><span>停用后保留配置，但不再对外发布。</span></span>
+        <span class="material-switch"><input id="serviceEnabled" type="checkbox" checked><span class="switch-track"><span class="switch-thumb"></span></span></span>
+      </label>
+      <p class="form-message" id="serviceMessage" role="status"></p>
+      <footer class="dialog-actions">
+        <button class="g35-link-button" id="btnCancelService" type="button">取消</button>
+        <button class="g35-primary-button" id="btnSaveService" type="submit"><i class="icon-save" aria-hidden="true"></i><span>保存服务</span></button>
+      </footer>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/js/api.js?v=3.7.0"></script>
+  <script src="/js/gateway.js?v=3.7.0" defer></script>
+</body>
+</html>

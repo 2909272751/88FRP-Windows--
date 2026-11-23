@@ -1,0 +1,65 @@
+概览
+服务
+远程访问
+设置
+服务
+仅限授权用户
+本机
+服务
+
+网页服务会自动出现在公开导航页；远程桌面和 SSH 在“远程访问”中统一管理。
+
+添加服务
+新增网页服务只需填写本机端口，域名与 HTTPS 自动配置。
+4 个网页 · 1 个直连 · 1 个未发布
+网页服务
+4 个
+CloudDrive2
+云盘
+本地可达
+xps-cd2.xps.liuhaobin.top:7777
+
+挂载云盘与统一文件管理
+
+打开
+Codex
+开发
+本地可达
+xps-codex.xps.liuhaobin.top:7777
+
+本机 Codex 工作区与任务入口
+
+打开
+DeepSeek Harness
+AI
+本地可达
+xps-deepseek.xps.liuhaobin.top:7777
+
+DeepSeek 调试与运行面板
+
+打开
+香港楼市终端
+行情终端
+本地可达
+xps.xps.liuhaobin.top:7777
+
+香港与广州楼市行情、租售比与买房判断
+
+打开
+直连服务
+1 个
+远程桌面
+直连
+本地可达
+xps.liuhaobin.top:64540
+
+通过 88FRP 域名端口连接这台电脑
+
+未发布
+1 个
+AList 文件
+文件
+已停用
+xps-alist.xps.liuhaobin.top:7777
+
+统一浏览与挂载网盘文件

@@ -1,0 +1,63 @@
+首页
+服务
+远程访问
+设置
+XPS 主机
+本机
+发布与入口
+服务
+
+网页服务共用主域名；远程服务使用独立端口和专用线路。
+
+添加服务
+每个网页服务使用独立子域名，新增后会自动出现在公开导航页。
+6 个服务
+已发布
+5 个
+云盘
+CloudDrive2
+xps-cd2.xps.liuhaobin.top:7777
+本地可达
+
+挂载云盘与统一文件管理
+
+打开
+开发
+Codex
+xps-codex.xps.liuhaobin.top:7777
+本地可达
+
+本机 Codex 工作区与任务入口
+
+打开
+AI
+DeepSeek Harness
+xps-deepseek.xps.liuhaobin.top:7777
+本地可达
+
+DeepSeek 调试与运行面板
+
+打开
+行情终端
+香港楼市终端
+xps.xps.liuhaobin.top:7777
+本地可达
+
+香港与广州楼市行情、租售比与买房判断
+
+打开
+远程桌面
+远程桌面
+xps.liuhaobin.top:64540
+本地可达
+
+通过 88FRP 域名端口连接这台电脑
+
+未发布
+1 个
+文件
+AList 文件
+xps-alist.xps.liuhaobin.top:7777
+已停用
+
+统一浏览与挂载网盘文件

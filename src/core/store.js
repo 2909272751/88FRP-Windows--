@@ -18,6 +18,24 @@ async function fsyncDirectory(directory) {
   }
 }
 
+const MAX_REPLACE_ATTEMPTS = 20;
+const RETRYABLE_REPLACE_CODES = new Set(["EPERM", "EACCES", "EBUSY"]);
+
+async function replaceFileWithRetry(temporary, filePath) {
+  for (let attempt = 0; attempt < MAX_REPLACE_ATTEMPTS; attempt += 1) {
+    try {
+      await fsp.rename(temporary, filePath);
+      return;
+    } catch (error) {
+      if (!RETRYABLE_REPLACE_CODES.has(error.code) || attempt === MAX_REPLACE_ATTEMPTS - 1) {
+        throw error;
+      }
+      const delay = Math.min(10 * (2 ** Math.min(attempt, 4)), 100);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}
+
 const DEFAULT_SETTINGS = {
   defaultRemoteUrl: DEFAULT_REMOTE_URL,
   apiTimeout: 10_000,
@@ -139,38 +157,41 @@ class Store {
   }
 
   async readJson(filePath, fallbackValue) {
-    try {
-      const raw = await fsp.readFile(filePath, "utf8");
-      return JSON.parse(raw);
-    } catch {
-      return fallbackValue;
-    }
+    return this.withJsonQueue(filePath, async () => {
+      try {
+        const raw = await fsp.readFile(filePath, "utf8");
+        return JSON.parse(raw);
+      } catch {
+        return fallbackValue;
+      }
+    });
   }
 
   async writeJson(filePath, value) {
     const contents = JSON.stringify(value, null, 2);
-    const previous = this.jsonWrites.get(filePath) || Promise.resolve();
-    const write = previous.catch(() => {}).then(async () => {
+    await this.withJsonQueue(filePath, async () => {
       const temporary = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
       try {
         await fsp.writeFile(temporary, contents, { encoding: "utf8", flag: "wx", mode: 0o600 });
         const handle = await fsp.open(temporary, "r+");
         try { await handle.sync(); } finally { await handle.close(); }
-        for (let attempt = 0; ; attempt++) {
-          try { await fsp.rename(temporary, filePath); break; }
-          catch (error) {
-            if (!["EPERM", "EACCES", "EBUSY"].includes(error.code) || attempt >= 9) throw error;
-            await new Promise(resolve => setTimeout(resolve, 20));
-          }
-        }
+        await replaceFileWithRetry(temporary, filePath);
         await fsyncDirectory(path.dirname(filePath));
       } finally {
         await fsp.rm(temporary, { force: true }).catch(() => {});
       }
     });
-    this.jsonWrites.set(filePath, write);
-    try { await write; }
-    finally { if (this.jsonWrites.get(filePath) === write) this.jsonWrites.delete(filePath); }
+  }
+
+  async withJsonQueue(filePath, operation) {
+    const previous = this.jsonWrites.get(filePath) || Promise.resolve();
+    const current = previous.catch(() => {}).then(operation);
+    this.jsonWrites.set(filePath, current);
+    try {
+      return await current;
+    } finally {
+      if (this.jsonWrites.get(filePath) === current) this.jsonWrites.delete(filePath);
+    }
   }
 
   async getSettings() {

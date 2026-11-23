@@ -82,7 +82,7 @@ function Set-88PrivateDirectory([string]$Directory, [string]$OwnerSid) {
 function New-88UpgradeBackup([string]$Root, [string]$AppDir, [string]$OwnerSid) {
   $backupRoot = Join-Path ([IO.Path]::GetDirectoryName($Root)) '88frp-backups'
   Set-88PrivateDirectory $backupRoot $OwnerSid
-  $snapshot = Join-Path $backupRoot ('upgrade-3.2.6-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
+  $snapshot = Join-Path $backupRoot ('upgrade-3.3.0-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
   [IO.Directory]::CreateDirectory($snapshot) | Out-Null
   $data = Join-Path $Root 'data'
   if (Test-Path -LiteralPath $data) { Copy-Item -LiteralPath $data -Destination $snapshot -Recurse }
@@ -103,9 +103,15 @@ function Get-88OwnedProcesses([string[]]$InstallRoots, [string]$DataRoot) {
 }
 function Test-88BackendOwnership([string]$AppDir, [int]$Port) {
   $expected = [IO.Path]::GetFullPath((Join-Path $AppDir '88frp-web.exe'))
+  $expectedName = [IO.Path]::GetFileName($expected)
   foreach ($listener in Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) {
     $process = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $listener.OwningProcess)
     if ($process.ExecutablePath -and [IO.Path]::GetFullPath($process.ExecutablePath) -ieq $expected) { return $true }
+    if (-not $process.ExecutablePath -and $process.Name -ieq $expectedName) {
+      # Protected SYSTEM processes can hide ExecutablePath from Win32_Process.
+      # The listener name and exact install-owned port remain verifiable here.
+      return $true
+    }
   }
   return $false
 }

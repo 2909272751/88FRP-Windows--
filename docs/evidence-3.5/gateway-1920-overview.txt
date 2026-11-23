@@ -1,0 +1,51 @@
+88FRP
+统一入口
+运行中
+XPS 主机
+xps.liuhaobin.top
+首页
+服务
+远程访问
+设置
+公开导航
+退出登录
+v3.5.0 · Windows
+XPS 主机
+本机
+这台设备
+XPS 主机
+
+所有服务都从这里打开；地址 xps.liuhaobin.top:7777 会自动切换到最快的连接方式。
+
+统一入口
+https://xps.liuhaobin.top:7777/
+打开导航
+IPv6 已就绪
+IPv4 备用就绪
+端口 7777
+IPv6 / IPv4 专用网页入口
+IPv6 专用
+https://v6.xps.liuhaobin.top:7777
+IPv4 专用
+https://v4.xps.liuhaobin.top:7777
+一切正常
+自动、IPv6 专用和 IPv4 专用入口都已就绪。
+当前连接
+本机
+服务
+
+5 个已启用服务
+
+管理全部
+CloudDrive2
+挂载云盘与统一文件管理
+打开
+Codex
+本机 Codex 工作区与任务入口
+打开
+DeepSeek Harness
+DeepSeek 调试与运行面板
+打开
+香港楼市终端
+香港与广州楼市行情、租售比与买房判断
+打开

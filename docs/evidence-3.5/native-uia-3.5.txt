@@ -1,0 +1,373 @@
+WINDOW_TITLE|88FRP v3.5.0
+=== 首页 ===
+WINDOW|30,281,1212,1950
+HORIZONTAL_OVERFLOW|0
+TEXT|88FRP v3.5.0
+TEXT|System Menu Bar
+TEXT|System
+TEXT|Minimize
+TEXT|Maximize
+TEXT|Close
+TEXT|账户
+TEXT|账户
+TEXT|首页
+TEXT|首页
+TEXT|服务
+TEXT|服务
+TEXT|设置
+TEXT|设置
+TEXT|远程
+TEXT|远程
+TEXT|首页
+TEXT|这台设备的入口和服务，一屏掌握。
+TEXT|状态更新于 17:00:14
+TEXT|打开导航页
+TEXT|打开导航页
+TEXT|刷新
+TEXT|刷新
+TEXT|统一入口
+TEXT|XPS 主机
+TEXT|https://xps.liuhaobin.top:7777/
+TEXT|自动入口优先走 IPv6；没有 IPv6 时自动切换 88FRP 的 IPv4 线路，也可以手动使用专用域名。
+TEXT|打开导航页
+TEXT|打开导航页
+TEXT|复制链接
+TEXT|复制链接
+TEXT|管理后台
+TEXT|管理后台
+TEXT|本机
+TEXT|IPv6 240e:3b8:30:bc81:5e39:af6e:4220:4f7a
+TEXT|统一入口已就绪
+TEXT|IPv6 / IPv4 专用网页入口
+TEXT|IPv6 / IPv4 专用网页入口
+TEXT|IPv6 专用
+TEXT|强制从 IPv6 网络打开网页入口
+TEXT|复制
+TEXT|复制
+TEXT|IPv4 专用
+TEXT|无 IPv6 时使用的 88FRP 网页入口
+TEXT|复制
+TEXT|复制
+TEXT|常用服务
+TEXT|4 个入口
+TEXT|自动双栈 · IPv6 / IPv4 专用线路
+TEXT|↗
+TEXT|CloudDrive2
+TEXT|在线
+TEXT|云盘
+TEXT|挂载云盘与统一文件管理
+TEXT|https://xps-cd2.xps.liuhaobin.top:7777/
+TEXT|打开
+TEXT|打开
+TEXT|复制
+TEXT|复制
+TEXT|↗
+TEXT|Codex
+TEXT|在线
+TEXT|开发
+TEXT|本机 Codex 工作区与任务入口
+TEXT|https://xps-codex.xps.liuhaobin.top:7777/
+TEXT|打开
+TEXT|打开
+TEXT|复制
+TEXT|复制
+TEXT|↗
+TEXT|DeepSeek Harness
+TEXT|在线
+TEXT|AI
+TEXT|DeepSeek 调试与运行面板
+TEXT|https://xps-deepseek.xps.liuhaobin.top:7777/
+TEXT|打开
+TEXT|打开
+TEXT|复制
+TEXT|复制
+TEXT|↗
+TEXT|香港楼市终端
+TEXT|在线
+TEXT|行情终端
+TEXT|香港与广州楼市行情、租售比与买房判断
+TEXT|https://xps.xps.liuhaobin.top:7777/
+TEXT|打开
+TEXT|打开
+TEXT|复制
+TEXT|复制
+EDITS|首页
+EDIT||https://v6.xps.liuhaobin.top:7777
+EDIT||https://v4.xps.liuhaobin.top:7777
+=== 服务 ===
+WINDOW|30,281,1212,1950
+HORIZONTAL_OVERFLOW|0
+TEXT|88FRP v3.5.0
+TEXT|System Menu Bar
+TEXT|System
+TEXT|Minimize
+TEXT|Maximize
+TEXT|Close
+TEXT|账户
+TEXT|账户
+TEXT|首页
+TEXT|首页
+TEXT|服务
+TEXT|服务
+TEXT|设置
+TEXT|设置
+TEXT|远程
+TEXT|远程
+TEXT|服务
+TEXT|添加、编辑和启停这台设备上的网页服务。
+TEXT|状态更新于 17:00:14
+TEXT|打开导航页
+TEXT|打开导航页
+TEXT|刷新
+TEXT|刷新
+TEXT|服务入口
+TEXT|所有网页服务统一从 https://xps.liuhaobin.top:7777/ 打开，新增服务会自动加入导航页。
+TEXT|每个网页服务使用一个子域名；远程桌面等直连服务使用独立端口。
+TEXT|+  添加服务
+TEXT|+  添加服务
+TEXT|已发布
+TEXT|5 个服务可从公网访问
+TEXT|CloudDrive2
+TEXT|网页
+TEXT|在线
+TEXT|访问地址 xps-cd2.xps.liuhaobin.top
+TEXT|挂载云盘与统一文件管理
+TEXT|https://xps-cd2.xps.liuhaobin.top:7777/
+TEXT|打开
+TEXT|打开
+TEXT|编辑
+TEXT|编辑
+TEXT|停用
+TEXT|停用
+TEXT|Codex
+TEXT|网页
+TEXT|在线
+TEXT|访问地址 xps-codex.xps.liuhaobin.top
+TEXT|本机 Codex 工作区与任务入口
+TEXT|https://xps-codex.xps.liuhaobin.top:7777/
+TEXT|打开
+TEXT|打开
+TEXT|编辑
+TEXT|编辑
+TEXT|停用
+TEXT|停用
+TEXT|DeepSeek Harness
+TEXT|网页
+TEXT|在线
+TEXT|访问地址 xps-deepseek.xps.liuhaobin.top
+TEXT|DeepSeek 调试与运行面板
+TEXT|https://xps-deepseek.xps.liuhaobin.top:7777/
+TEXT|打开
+TEXT|打开
+TEXT|编辑
+TEXT|编辑
+TEXT|停用
+TEXT|停用
+TEXT|香港楼市终端
+TEXT|网页
+TEXT|在线
+TEXT|访问地址 xps.xps.liuhaobin.top
+TEXT|香港与广州楼市行情、租售比与买房判断
+TEXT|https://xps.xps.liuhaobin.top:7777/
+TEXT|打开
+TEXT|打开
+TEXT|编辑
+TEXT|编辑
+TEXT|停用
+TEXT|停用
+TEXT|远程桌面
+TEXT|远程桌面
+TEXT|公网端口 64540
+TEXT|通过 88FRP 域名端口连接这台电脑
+TEXT|xps.liuhaobin.top:64540
+TEXT|复制地址
+TEXT|复制地址
+TEXT|编辑
+TEXT|编辑
+TEXT|停用
+TEXT|停用
+TEXT|未发布
+TEXT|1 个服务保留配置，不生成公网入口
+TEXT|AList 文件
+TEXT|网页
+TEXT|已停用
+TEXT|访问地址 xps-alist.xps.liuhaobin.top
+TEXT|统一浏览与挂载网盘文件
+TEXT|编辑
+TEXT|编辑
+TEXT|启用
+TEXT|启用
+EDITS|服务
+=== 设置 ===
+WINDOW|30,281,1212,1950
+HORIZONTAL_OVERFLOW|0
+TEXT|88FRP v3.5.0
+TEXT|System Menu Bar
+TEXT|System
+TEXT|Minimize
+TEXT|Maximize
+TEXT|Close
+TEXT|账户
+TEXT|账户
+TEXT|首页
+TEXT|首页
+TEXT|服务
+TEXT|服务
+TEXT|设置
+TEXT|设置
+TEXT|远程
+TEXT|远程
+TEXT|设置
+TEXT|设备名称、公网地址和连接方式。
+TEXT|状态更新于 17:00:14
+TEXT|打开导航页
+TEXT|打开导航页
+TEXT|刷新
+TEXT|刷新
+TEXT|设备与入口
+TEXT|这台设备只需要一个主域名；主地址是服务导航，admin 子域是管理后台。
+TEXT|设备名称
+TEXT|显示在入口页上的名称
+TEXT|设备主域名
+TEXT|例如 xps.example.com
+TEXT|统一入口端口
+TEXT|网页服务共用一个端口
+TEXT|IPv6 检测
+TEXT|自动检测失败时可手填
+TEXT|开机后自动启动服务入口与备用通道
+TEXT|开机后自动启动服务入口与备用通道
+TEXT|保存设备设置
+TEXT|保存设备设置
+TEXT|域名授权与证书
+TEXT|已授权
+TEXT|粘贴一次域名服务授权，之后地址变化会自动同步，HTTPS 证书也会自动续期。授权信息只保存在本机，不会回显。
+TEXT|验证并保存
+TEXT|验证并保存
+TEXT|区域：liuhaobin.top  ·  TTL：60  ·  最近同步：2026-11-23 16:28:48
+TEXT|公网地址自动跟随
+TEXT|每 5 秒检查一次本机地址，只有地址变化时才更新解析。
+TEXT|立即同步 DNS
+TEXT|立即同步 DNS
+TEXT|A
+TEXT|xps.liuhaobin.top
+TEXT|自动入口 · IPv4 备用
+TEXT|8.137.15.216
+TEXT|A
+TEXT|*.xps.liuhaobin.top
+TEXT|网页自动入口 · IPv4 备用
+TEXT|8.137.15.216
+TEXT|A
+TEXT|v4.xps.liuhaobin.top
+TEXT|IPv4 专用入口
+TEXT|8.137.15.216
+TEXT|A
+TEXT|ssh-v4.xps.liuhaobin.top
+TEXT|SSH IPv4 专用入口
+TEXT|8.137.15.216
+TEXT|AAAA
+TEXT|xps.liuhaobin.top
+TEXT|自动入口 · IPv6 直连
+TEXT|240e:3b8:30:bc81:5e39:af6e:4220:4f7a
+TEXT|AAAA
+TEXT|*.xps.liuhaobin.top
+TEXT|网页自动入口 · IPv6 直连
+TEXT|240e:3b8:30:bc81:5e39:af6e:4220:4f7a
+TEXT|AAAA
+TEXT|v6.xps.liuhaobin.top
+TEXT|IPv6 专用入口
+TEXT|240e:3b8:30:bc81:5e39:af6e:4220:4f7a
+TEXT|AAAA
+TEXT|ssh-v6.xps.liuhaobin.top
+TEXT|SSH IPv6 专用入口
+TEXT|240e:3b8:30:bc81:5e39:af6e:4220:4f7a
+EDITS|设置
+EDIT||XPS 主机
+EDIT||xps.liuhaobin.top
+EDIT||7777
+=== 远程 ===
+WINDOW|30,281,1212,1950
+HORIZONTAL_OVERFLOW|0
+TEXT|88FRP v3.5.0
+TEXT|System Menu Bar
+TEXT|System
+TEXT|Minimize
+TEXT|Maximize
+TEXT|Close
+TEXT|账户
+TEXT|账户
+TEXT|首页
+TEXT|首页
+TEXT|服务
+TEXT|服务
+TEXT|设置
+TEXT|设置
+TEXT|远程
+TEXT|远程
+TEXT|远程访问
+TEXT|远程桌面与 SSH 都提供自动、IPv6 专用、IPv4 专用三条线路。
+TEXT|状态更新于 17:00:29
+TEXT|打开导航页
+TEXT|打开导航页
+TEXT|刷新
+TEXT|刷新
+TEXT|远程桌面：三条线路
+TEXT|自动双栈域名会按当前网络选择最快线路；也可以强制使用 IPv6 专用或 IPv4 专用地址。登录使用 Microsoft 账户邮箱和账户密码，不能使用 PIN。
+TEXT|SSH 同样提供三条线路，命令行和远程桌面互不影响。
+TEXT|SSH 入口
+TEXT|启用 SSH 入口
+TEXT|启用 SSH 入口
+TEXT|本地地址
+TEXT|本地端口
+TEXT|公网端口
+TEXT|自动分配
+TEXT|三条线路已生成
+TEXT|本地 SSH 端口可达 · 本地端口 22
+TEXT|连接通道正常
+TEXT|保存 SSH 设置
+TEXT|保存 SSH 设置
+TEXT|自动双栈
+TEXT|按当前网络自动选择 IPv6 或 IPv4
+TEXT|复制
+TEXT|复制
+TEXT|IPv6 专用
+TEXT|只解析到设备的公网 IPv6
+TEXT|复制
+TEXT|复制
+TEXT|IPv4 专用
+TEXT|只解析到 88FRP 的 IPv4 节点
+TEXT|复制
+TEXT|复制
+TEXT|自动双栈（推荐）
+TEXT|IPv4 和 IPv6 网络都能连接
+TEXT|复制
+TEXT|复制
+TEXT|IPv6 专用
+TEXT|强制直连设备的公网 IPv6
+TEXT|复制
+TEXT|复制
+TEXT|IPv4 专用
+TEXT|强制经 88FRP 节点连接
+TEXT|复制
+TEXT|复制
+TEXT|Windows 防火墙
+TEXT|已放行
+TEXT|统一入口、SSH 和远程桌面的公网端口已加入同一套放行规则。
+TEXT|添加放行规则
+TEXT|添加放行规则
+TEXT|连接通道
+TEXT|SSH 安全入口
+TEXT|公网端口 50258
+TEXT|运行中
+TEXT|远程桌面直连
+TEXT|公网端口 64540
+TEXT|运行中
+EDITS|远程
+EDIT||127.0.0.1
+EDIT||22
+EDIT||50258
+EDIT||ssh.xps.liuhaobin.top:50258
+EDIT||ssh-v6.xps.liuhaobin.top:50258
+EDIT||ssh-v4.xps.liuhaobin.top:50258
+EDIT||xps.liuhaobin.top:64540
+EDIT||v6.xps.liuhaobin.top:64540
+EDIT||v4.xps.liuhaobin.top:64540

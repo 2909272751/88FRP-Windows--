@@ -1,5 +1,5 @@
 #define AppName "88FRP"
-#define AppVersion "3.2.6"
+#define AppVersion "3.7.0"
 #define AppPublisher "88FRP Windows"
 #define AppURL "https://github.com/2909272751/88FRP-Windows--"
 #define AppExeName "88FRP.exe"
@@ -23,7 +23,7 @@ DisableReadyPage=no
 DisableFinishedPage=no
 DisableProgramGroupPage=yes
 OutputDir=..\dist
-OutputBaseFilename=88FRP-Windows-Setup-3.2.6
+OutputBaseFilename=88FRP-Windows-Setup-3.7.0
 SetupIconFile=..\assets\88frp-logo.ico
 UninstallDisplayIcon={app}\88FRP.exe
 Compression=lzma2/ultra64
@@ -53,6 +53,7 @@ Name: "autostart"; Description: "开机自动启动 88FRP"; GroupDescription: "�
 [Files]
 Source: "{#BuildDir}\88FRP.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildDir}\88frp-web.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#BuildDir}\caddy.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildDir}\88frp-logo.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildDir}\88frp-logo.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildDir}\README.txt"; DestDir: "{app}"; Flags: ignoreversion

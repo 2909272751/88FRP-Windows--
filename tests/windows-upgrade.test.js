@@ -131,3 +131,19 @@ test("未勾选开机启动时也验证本次后台，但保持任务禁用状�
   `);
   assert.deepEqual(r, { launchedOnce: true, startupRemainsDisabled: true });
 });
+
+test("SYSTEM 后台隐藏进程路径时仍按监听端口和程序名校验为本次安装", { skip: process.platform !== "win32" }, () => {
+  const r = runFixture(`
+    function Get-NetTCPConnection {param($LocalPort,$State,$ErrorAction) return @([pscustomobject]@{OwningProcess=321})}
+    function Get-CimInstance {param($ClassName,$Filter)
+      if($ClassName -eq 'Win32_Process'){return [pscustomobject]@{Name='88frp-web.exe';ExecutablePath=$null}}
+    }
+    $owned=Test-88BackendOwnership (Join-Path $root 'app') 8801
+    function Get-CimInstance {param($ClassName,$Filter)
+      if($ClassName -eq 'Win32_Process'){return [pscustomobject]@{Name='other-web.exe';ExecutablePath=$null}}
+    }
+    $foreign=Test-88BackendOwnership (Join-Path $root 'app') 8801
+    @{owned=$owned;foreignRejected=(-not $foreign)}|ConvertTo-Json -Compress
+  `);
+  assert.deepEqual(r, { owned: true, foreignRejected: true });
+});

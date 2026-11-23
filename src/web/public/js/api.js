@@ -143,5 +143,74 @@ window.API = (() => {
     getDomainLinks(id) {
       return request(`/api/instances/${id}/domain-binding/links`);
     },
+
+    /* -------------------------------------------------- 单设备统一入口 ---- */
+
+    getGateway({ includeHealth = true } = {}) {
+      return request(includeHealth ? "/api/gateway" : "/api/gateway?health=0");
+    },
+    getPublicPortal() {
+      return request("/api/gateway/public");
+    },
+    migrateGateway(payload) {
+      return request("/api/gateway/migrate", {
+        method: "POST",
+        body: JSON.stringify(payload || {}),
+      });
+    },
+    bootstrapGateway(payload) {
+      return request("/api/gateway/bootstrap", {
+        method: "POST",
+        body: JSON.stringify(payload || {}),
+      });
+    },
+    updateGatewayDevice(payload) {
+      return request("/api/gateway/device", {
+        method: "PUT",
+        body: JSON.stringify(payload || {}),
+      });
+    },
+    saveGatewayToken(token, domain) {
+      return request("/api/gateway/cloudflare/token", {
+        method: "POST",
+        body: JSON.stringify({ token, domain }),
+      });
+    },
+    syncGatewayDns() {
+      return request("/api/gateway/dns/sync", { method: "POST", body: "{}" });
+    },
+    addGatewayService(payload) {
+      return request("/api/gateway/services", {
+        method: "POST",
+        body: JSON.stringify(payload || {}),
+      });
+    },
+    updateGatewayService(id, payload) {
+      return request(`/api/gateway/services/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        body: JSON.stringify(payload || {}),
+      });
+    },
+    deleteGatewayService(id) {
+      return request(`/api/gateway/services/${encodeURIComponent(id)}`, { method: "DELETE" });
+    },
+    updateGatewaySsh(payload) {
+      return request("/api/gateway/ssh", {
+        method: "PUT",
+        body: JSON.stringify(payload || {}),
+      });
+    },
+    syncGatewaySource() {
+      return request("/api/gateway/source/sync", { method: "POST", body: "{}" });
+    },
+    openGatewayFirewall() {
+      return request("/api/gateway/firewall/open", { method: "POST", body: "{}" });
+    },
+    restartGateway() {
+      return request("/api/gateway/restart", { method: "POST", body: "{}" });
+    },
+    getGatewayLogs(tail = 200) {
+      return request(`/api/gateway/logs?tail=${Number(tail) || 200}`);
+    },
   };
 })();

@@ -1,0 +1,51 @@
+{
+  "generatedAt": "2026-11-23T10:02:11",
+  "executable": "C:\\Users\\29092\\AppData\\Local\\Programs\\88FRP\\88FRP.exe",
+  "bytes": 426496,
+  "sha256": "D12E2EA60C4B4FC9818B569DBFD2B076ACA23A6CB14C2E963E78C419A16CF419",
+  "windowTitle": "88FRP v3.3.1",
+  "pages": [
+    {
+      "name": "概览",
+      "window": "30,206,1212,2100",
+      "textCount": "75",
+      "forbidden": "none",
+      "horizontalOverflow": "0"
+    },
+    {
+      "name": "服务",
+      "window": "30,206,1212,2100",
+      "textCount": "85",
+      "forbidden": "none",
+      "horizontalOverflow": "0"
+    },
+    {
+      "name": "域名",
+      "window": "30,206,1212,2100",
+      "textCount": "59",
+      "forbidden": "none",
+      "horizontalOverflow": "0"
+    },
+    {
+      "name": "远程",
+      "window": "30,206,1212,2100",
+      "textCount": "46",
+      "forbidden": "none",
+      "horizontalOverflow": "0"
+    },
+    {
+      "name": "运行",
+      "window": "30,206,1212,2100",
+      "textCount": "34",
+      "forbidden": "none",
+      "horizontalOverflow": "0"
+    },
+    {
+      "name": "全局设置",
+      "window": "",
+      "textCount": "",
+      "forbidden": "none",
+      "horizontalOverflow": ""
+    }
+  ]
+}

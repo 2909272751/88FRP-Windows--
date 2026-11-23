@@ -1,0 +1,39 @@
+{
+  "path": "C:\\Users\\29092\\AppData\\Local\\Programs\\88FRP\\88FRP.exe",
+  "bytes": 426496,
+  "sha256": "D12E2EA60C4B4FC9818B569DBFD2B076ACA23A6CB14C2E963E78C419A16CF419",
+  "windowTitle": "88FRP v3.3.1",
+  "pages": [
+    "概览",
+    "服务",
+    "域名",
+    "远程",
+    "运行"
+  ],
+  "uiaForbiddenTermCounts": {
+    "frpc": 0,
+    "Caddy": 0,
+    "PID": 0,
+    "JSON": 0,
+    "旧实例": 0,
+    "迁移": 0,
+    "兜底": 0,
+    "中继": 0,
+    "旧服务": 0,
+    "旧版隧道": 0,
+    "同步名称": 0
+  },
+  "uiaHorizontalOverflow": 0,
+  "settingsMainPanelLegacyEntries": 0,
+  "portableZip": {
+    "path": "C:\\实用软件开发\\88frp-windows-src\\dist\\88FRP-Windows.zip",
+    "bytes": 62719794,
+    "sha256": "03C388A616B65589807C8472CB0E714582A87817F95DD6DCDECCC571C745DE41"
+  },
+  "desktopAutostart": {
+    "mechanism": "HKCU Run",
+    "entry": "88FRP Desktop",
+    "launcher": "C:\\Users\\29092\\AppData\\Local\\Programs\\88FRP\\start-desktop.ps1",
+    "verified": "legacy desktop replaced; SYSTEM backend PID 33052 untouched"
+  }
+}

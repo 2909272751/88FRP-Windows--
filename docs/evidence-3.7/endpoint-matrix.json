@@ -1,0 +1,106 @@
+{
+  "checked_at": "2026-11-23T14:35:29.197Z",
+  "web": [
+    {
+      "host": "xps.liuhaobin.top",
+      "port": 7777,
+      "ok": true,
+      "protocol": "https",
+      "status": 200,
+      "remote_address": "240e:3b8:30:bc81:5e39:af6e:4220:4f7a",
+      "remote_family": "IPv6",
+      "elapsed_ms": 48,
+      "version_3_7": true,
+      "portal_marker": true
+    },
+    {
+      "host": "v6.xps.liuhaobin.top",
+      "port": 7777,
+      "ok": true,
+      "protocol": "https",
+      "status": 200,
+      "remote_address": "240e:3b8:30:bc81:5e39:af6e:4220:4f7a",
+      "remote_family": "IPv6",
+      "elapsed_ms": 13,
+      "version_3_7": true,
+      "portal_marker": true
+    },
+    {
+      "host": "v4.xps.liuhaobin.top",
+      "port": 7777,
+      "ok": true,
+      "protocol": "https",
+      "status": 200,
+      "remote_address": "8.137.15.216",
+      "remote_family": "IPv4",
+      "elapsed_ms": 198,
+      "version_3_7": true,
+      "portal_marker": true
+    }
+  ],
+  "rdp": [
+    {
+      "host": "xps.liuhaobin.top",
+      "port": 64540,
+      "remote_address": "240e:3b8:30:bc81:5e39:af6e:4220:4f7a",
+      "remote_family": "IPv6",
+      "elapsed_ms": 11,
+      "ok": true,
+      "protocol": "rdp",
+      "first_bytes": "030000130ed000001234000300080002"
+    },
+    {
+      "host": "v6.xps.liuhaobin.top",
+      "port": 64540,
+      "remote_address": "240e:3b8:30:bc81:5e39:af6e:4220:4f7a",
+      "remote_family": "IPv6",
+      "elapsed_ms": 9,
+      "ok": true,
+      "protocol": "rdp",
+      "first_bytes": "030000130ed000001234000300080002"
+    },
+    {
+      "host": "v4.xps.liuhaobin.top",
+      "port": 64540,
+      "remote_address": "8.137.15.216",
+      "remote_family": "IPv4",
+      "elapsed_ms": 216,
+      "ok": true,
+      "protocol": "rdp",
+      "first_bytes": "030000130ed000001234000300080002"
+    }
+  ],
+  "ssh": [
+    {
+      "host": "ssh.xps.liuhaobin.top",
+      "port": 50258,
+      "remote_address": "240e:3b8:30:bc81:5e39:af6e:4220:4f7a",
+      "remote_family": "IPv6",
+      "elapsed_ms": 33,
+      "ok": true,
+      "protocol": "ssh",
+      "banner": "SSH-2.0-OpenSSH_for_Windows_9.5"
+    },
+    {
+      "host": "ssh-v6.xps.liuhaobin.top",
+      "port": 50258,
+      "remote_address": "240e:3b8:30:bc81:5e39:af6e:4220:4f7a",
+      "remote_family": "IPv6",
+      "elapsed_ms": 36,
+      "ok": true,
+      "protocol": "ssh",
+      "banner": "SSH-2.0-OpenSSH_for_Windows_9.5"
+    },
+    {
+      "host": "ssh-v4.xps.liuhaobin.top",
+      "port": 50258,
+      "remote_address": "8.137.15.216",
+      "remote_family": "IPv4",
+      "elapsed_ms": 247,
+      "ok": true,
+      "protocol": "ssh",
+      "banner": "SSH-2.0-OpenSSH_for_Windows_9.5"
+    }
+  ],
+  "all_ok": true
+}

@@ -1,0 +1,134 @@
+{
+  "generatedAt": "2026-11-23T16:57:48+08:00",
+  "web": [
+    {
+      "label": "web-auto-v6",
+      "host": "xps.liuhaobin.top",
+      "family": "ipv6",
+      "httpStatus": 200,
+      "remoteIp": "240e:3b8:30:bc81:5e39:af6e:4220:4f7a",
+      "tlsVerifyResult": 0,
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "label": "web-auto-v4",
+      "host": "xps.liuhaobin.top",
+      "family": "ipv4",
+      "httpStatus": 200,
+      "remoteIp": "8.137.15.216",
+      "tlsVerifyResult": 0,
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "label": "web-ipv6",
+      "host": "v6.xps.liuhaobin.top",
+      "family": "ipv6",
+      "httpStatus": 200,
+      "remoteIp": "240e:3b8:30:bc81:5e39:af6e:4220:4f7a",
+      "tlsVerifyResult": 0,
+      "exitCode": 0,
+      "ok": true
+    },
+    {
+      "label": "web-ipv4",
+      "host": "v4.xps.liuhaobin.top",
+      "family": "ipv4",
+      "httpStatus": 200,
+      "remoteIp": "8.137.15.216",
+      "tlsVerifyResult": 0,
+      "exitCode": 0,
+      "ok": true
+    }
+  ],
+  "webNegativeFamilyChecks": [
+    {
+      "label": "web-ipv6-via-v4",
+      "host": "v6.xps.liuhaobin.top",
+      "family": "ipv4",
+      "httpStatus": 0,
+      "remoteIp": "",
+      "exitCode": 6,
+      "ok": true
+    },
+    {
+      "label": "web-ipv4-via-v6",
+      "host": "v4.xps.liuhaobin.top",
+      "family": "ipv6",
+      "httpStatus": 0,
+      "remoteIp": "",
+      "exitCode": 6,
+      "ok": true
+    }
+  ],
+  "rdp": [
+    {
+      "label": "rdp-auto-v4",
+      "host": "xps.liuhaobin.top",
+      "address": "8.137.15.216",
+      "milliseconds": 35,
+      "responseHex": "030000130ed000001234000300080002000000",
+      "ok": true
+    },
+    {
+      "label": "rdp-auto-v6",
+      "host": "xps.liuhaobin.top",
+      "address": "240e:3b8:30:bc81:5e39:af6e:4220:4f7a",
+      "milliseconds": 27,
+      "responseHex": "030000130ed000001234000300080002000000",
+      "ok": true
+    },
+    {
+      "label": "rdp-ipv6",
+      "host": "v6.xps.liuhaobin.top",
+      "address": "240e:3b8:30:bc81:5e39:af6e:4220:4f7a",
+      "milliseconds": 27,
+      "responseHex": "030000130ed000001234000300080002000000",
+      "ok": true
+    },
+    {
+      "label": "rdp-ipv4",
+      "host": "v4.xps.liuhaobin.top",
+      "address": "8.137.15.216",
+      "milliseconds": 243,
+      "responseHex": "030000130ed000001234000300080002000000",
+      "ok": true
+    }
+  ],
+  "ssh": [
+    {
+      "label": "ssh-auto-v4",
+      "host": "ssh.xps.liuhaobin.top",
+      "address": "8.137.15.216",
+      "milliseconds": 37,
+      "banner": "SSH-2.0-OpenSSH_for_Windows_9.5",
+      "ok": true
+    },
+    {
+      "label": "ssh-auto-v6",
+      "host": "ssh.xps.liuhaobin.top",
+      "address": "240e:3b8:30:bc81:5e39:af6e:4220:4f7a",
+      "milliseconds": 32,
+      "banner": "SSH-2.0-OpenSSH_for_Windows_9.5",
+      "ok": true
+    },
+    {
+      "label": "ssh-ipv6",
+      "host": "ssh-v6.xps.liuhaobin.top",
+      "address": "240e:3b8:30:bc81:5e39:af6e:4220:4f7a",
+      "milliseconds": 35,
+      "banner": "SSH-2.0-OpenSSH_for_Windows_9.5",
+      "ok": true
+    },
+    {
+      "label": "ssh-ipv4",
+      "host": "ssh-v4.xps.liuhaobin.top",
+      "address": "8.137.15.216",
+      "milliseconds": 276,
+      "banner": "SSH-2.0-OpenSSH_for_Windows_9.5",
+      "ok": true
+    }
+  ],
+  "allPassed": true
+}

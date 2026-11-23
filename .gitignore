@@ -5,7 +5,12 @@ dist/
 coverage/
 .env
 .sea/
+bin/amd64/caddy.exe
 backup-installed-*/
 *.log
 *.err
+.tmp-*
+*.tmpmin
+logs/
+$null
 scripts/archive/

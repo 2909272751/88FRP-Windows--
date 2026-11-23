@@ -31,7 +31,7 @@ test('桌面状态轮询保留中文输入、光标、隧道选择和配置草�
       '/nologo', '/target:exe', '/codepage:65001', '/main:NativeEditingRegression', `/out:${exe}`,
       ...['System.dll', 'System.Core.dll', 'System.Drawing.dll', 'System.Windows.Forms.dll', 'System.Web.Extensions.dll', 'System.Xaml.dll', 'Microsoft.CSharp.dll'].map(x => `/reference:${x}`),
       ...['WindowsBase', 'PresentationCore', 'PresentationFramework'].map(x => `/reference:${path.join(framework, 'WPF', x + '.dll')}`),
-      ...['WpfClient.cs', 'DomainTab.cs', 'ConsoleSecurityWindow.cs', 'ClientThemePalette.cs', 'ClientUiStyles.cs'].map(x => path.join(__dirname, '../src/windows-launcher', x)),
+      ...['WpfClient.cs', 'GatewayWorkspace.cs', 'DomainTab.cs', 'ConsoleSecurityWindow.cs', 'ClientThemePalette.cs', 'ClientUiStyles.cs'].map(x => path.join(__dirname, '../src/windows-launcher', x)),
       path.join(__dirname, 'fixtures/NativeEditingRegression.cs'),
     ], { windowsHide: true, timeout: 20000 });
     const { stdout } = await promisify(execFile)(exe, [String(server.address().port)], { windowsHide: true, timeout: 20000 });

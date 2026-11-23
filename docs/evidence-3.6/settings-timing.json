@@ -1,0 +1,59 @@
+{
+  "base": "http://127.0.0.1:8898",
+  "runs": [
+    {
+      "label": "cold-settings",
+      "warm": false,
+      "workspace_visible_s": 0.516,
+      "settings_content_s": 0.542,
+      "title": "XPS 主机",
+      "advanced": "高级与诊断 重新连接来源 重启服务入口 入站访问 Windows 防火墙 不会关闭 Windows 防火墙，只管理 88FRP 需要的放行端口。 防火墙已关闭 防火墙状态 已关闭，无需放行 UDP 服务 已关闭，无需放行 说明 系统防火墙当前关闭，公网访问不受入站规则影响。 开放所需端口 网页访问 运行正常 用途 网页"
+    },
+    {
+      "label": "reload-settings",
+      "warm": false,
+      "workspace_visible_s": 0.016,
+      "settings_content_s": 0.024,
+      "title": "XPS 主机",
+      "advanced": "高级与诊断 重新连接来源 重启服务入口 入站访问 Windows 防火墙 不会关闭 Windows 防火墙，只管理 88FRP 需要的放行端口。 防火墙已关闭 防火墙状态 已关闭，无需放行 UDP 服务 已关闭，无需放行 说明 系统防火墙当前关闭，公网访问不受入站规则影响。 开放所需端口 网页访问 运行正常 用途 网页"
+    },
+    {
+      "label": "reload-settings-2",
+      "warm": true,
+      "workspace_visible_s": 0.018,
+      "settings_content_s": 0.021,
+      "title": "XPS 主机",
+      "advanced": "高级与诊断 重新连接来源 重启服务入口 入站访问 Windows 防火墙 不会关闭 Windows 防火墙，只管理 88FRP 需要的放行端口。 防火墙已关闭 防火墙状态 已关闭，无需放行 UDP 服务 已关闭，无需放行 说明 系统防火墙当前关闭，公网访问不受入站规则影响。 开放所需端口 网页访问 运行正常 用途 网页"
+    }
+  ],
+  "api": {
+    "api-fast": [
+      {
+        "status": 200,
+        "ms": 11.8
+      },
+      {
+        "status": 200,
+        "ms": 9.9
+      },
+      {
+        "status": 200,
+        "ms": 9.8
+      }
+    ],
+    "api-full": [
+      {
+        "status": 200,
+        "ms": 12.1
+      },
+      {
+        "status": 200,
+        "ms": 10.3
+      },
+      {
+        "status": 200,
+        "ms": 10.0
+      }
+    ]
+  }
+}

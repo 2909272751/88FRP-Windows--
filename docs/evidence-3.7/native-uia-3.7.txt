@@ -1,0 +1,412 @@
+WINDOW_TITLE|88FRP v3.7.0
+SCREEN|1272x2632
+FITS_SCREEN|True
+=== 概览 ===
+WINDOW|0,0,1212,1950
+TEXT_COUNT|80
+HORIZONTAL_OVERFLOW|0
+REQUIRED|XPS 主机|True
+REQUIRED|https://xps.liuhaobin.top:7777/|True
+REQUIRED|https://v6.xps.liuhaobin.top:7777/|False
+REQUIRED|https://v4.xps.liuhaobin.top:7777/|False
+REQUIRED|手动切换网页线路|True
+TEXT|88FRP v3.7.0
+TEXT|System Menu Bar
+TEXT|System
+TEXT|Minimize
+TEXT|Maximize
+TEXT|Close
+TEXT|账户
+TEXT|账户
+TEXT|概览
+TEXT|概览
+TEXT|服务
+TEXT|服务
+TEXT|远程访问
+TEXT|远程访问
+TEXT|设置
+TEXT|设置
+TEXT|XPS 主机
+TEXT|所有服务都从这里打开；自动线路优先使用 IPv6。
+TEXT|本机后台已连接 · 22:12:59
+TEXT|导航
+TEXT|导航
+TEXT|刷新
+TEXT|刷新
+TEXT|公开访问地址
+TEXT|把这一个地址发给需要访问的人；网络会自动选择 IPv6 或 IPv4，需要排障时可展开手动线路。
+TEXT|https://xps.liuhaobin.top:7777/
+TEXT|打开导航页
+TEXT|打开导航页
+TEXT|复制链接
+TEXT|复制链接
+TEXT|管理后台
+TEXT|管理后台
+TEXT|本机
+TEXT|IPv6 240e:3b8:30:bc81:5e39:af6e:4220:4f7a
+TEXT|统一入口已就绪
+TEXT|手动切换网页线路
+TEXT|手动切换网页线路
+TEXT|常用服务
+TEXT|4 个入口
+TEXT|一个地址打开全部网页服务
+TEXT|↗
+TEXT|CloudDrive2
+TEXT|在线
+TEXT|云盘
+TEXT|挂载云盘与统一文件管理
+TEXT|https://xps-cd2.xps.liuhaobin.top:7777/
+TEXT|打开
+TEXT|打开
+TEXT|复制
+TEXT|复制
+TEXT|↗
+TEXT|Codex
+TEXT|在线
+TEXT|开发
+TEXT|本机 Codex 工作区与任务入口
+TEXT|https://xps-codex.xps.liuhaobin.top:7777/
+TEXT|打开
+TEXT|打开
+TEXT|复制
+TEXT|复制
+TEXT|↗
+TEXT|DeepSeek Harness
+TEXT|在线
+TEXT|AI
+TEXT|DeepSeek 调试与运行面板
+TEXT|https://xps-deepseek.xps.liuhaobin.top:7777/
+TEXT|打开
+TEXT|打开
+TEXT|复制
+TEXT|复制
+TEXT|↗
+TEXT|香港楼市终端
+TEXT|在线
+TEXT|行情终端
+TEXT|香港与广州楼市行情、租售比与买房判断
+TEXT|https://xps.xps.liuhaobin.top:7777/
+TEXT|打开
+TEXT|打开
+TEXT|复制
+TEXT|复制
+MANUAL_LINE_DEFAULT|Collapsed
+=== 服务 ===
+WINDOW|0,0,1212,1950
+TEXT_COUNT|102
+HORIZONTAL_OVERFLOW|0
+REQUIRED|服务|True
+REQUIRED|网页服务|True
+REQUIRED|直连服务|True
+REQUIRED|+  添加服务|True
+TEXT|88FRP v3.7.0
+TEXT|System Menu Bar
+TEXT|System
+TEXT|Minimize
+TEXT|Maximize
+TEXT|Close
+TEXT|账户
+TEXT|账户
+TEXT|概览
+TEXT|概览
+TEXT|服务
+TEXT|服务
+TEXT|远程访问
+TEXT|远程访问
+TEXT|设置
+TEXT|设置
+TEXT|服务
+TEXT|添加、编辑和启停这台设备上的网页服务。
+TEXT|本机后台已连接 · 22:12:59
+TEXT|导航
+TEXT|导航
+TEXT|刷新
+TEXT|刷新
+TEXT|所有网页服务共用一个入口
+TEXT|所有网页服务统一从 https://xps.liuhaobin.top:7777/ 打开，新增服务会自动加入导航页。
+TEXT|新增网页服务时只需填写本机端口，域名和 HTTPS 会自动配置。
+TEXT|+  添加服务
+TEXT|+  添加服务
+TEXT|网页服务
+TEXT|4 个入口
+TEXT|CloudDrive2
+TEXT|网页
+TEXT|在线
+TEXT|访问地址 xps-cd2.xps.liuhaobin.top
+TEXT|挂载云盘与统一文件管理
+TEXT|https://xps-cd2.xps.liuhaobin.top:7777/
+TEXT|打开
+TEXT|打开
+TEXT|编辑
+TEXT|编辑
+TEXT|停用
+TEXT|停用
+TEXT|Codex
+TEXT|网页
+TEXT|在线
+TEXT|访问地址 xps-codex.xps.liuhaobin.top
+TEXT|本机 Codex 工作区与任务入口
+TEXT|https://xps-codex.xps.liuhaobin.top:7777/
+TEXT|打开
+TEXT|打开
+TEXT|编辑
+TEXT|编辑
+TEXT|停用
+TEXT|停用
+TEXT|DeepSeek Harness
+TEXT|网页
+TEXT|在线
+TEXT|访问地址 xps-deepseek.xps.liuhaobin.top
+TEXT|DeepSeek 调试与运行面板
+TEXT|https://xps-deepseek.xps.liuhaobin.top:7777/
+TEXT|打开
+TEXT|打开
+TEXT|编辑
+TEXT|编辑
+TEXT|停用
+TEXT|停用
+TEXT|香港楼市终端
+TEXT|网页
+TEXT|在线
+TEXT|访问地址 xps.xps.liuhaobin.top
+TEXT|香港与广州楼市行情、租售比与买房判断
+TEXT|https://xps.xps.liuhaobin.top:7777/
+TEXT|打开
+TEXT|打开
+TEXT|编辑
+TEXT|编辑
+TEXT|停用
+TEXT|停用
+TEXT|直连服务
+TEXT|1 个独立端口
+TEXT|远程桌面
+TEXT|直连
+TEXT|公网端口 64540
+TEXT|通过 88FRP 域名端口连接这台电脑
+TEXT|xps.liuhaobin.top:64540
+TEXT|复制地址
+TEXT|复制地址
+TEXT|编辑
+TEXT|编辑
+TEXT|停用
+TEXT|停用
+TEXT|未发布
+TEXT|1 个服务保留配置，不生成公网入口
+TEXT|AList 文件
+TEXT|网页
+TEXT|已停用
+TEXT|访问地址 xps-alist.xps.liuhaobin.top
+TEXT|统一浏览与挂载网盘文件
+TEXT|编辑
+TEXT|编辑
+TEXT|启用
+TEXT|启用
+=== 远程访问 ===
+WINDOW|0,0,1212,1950
+TEXT_COUNT|58
+HORIZONTAL_OVERFLOW|0
+REQUIRED|xps.liuhaobin.top:64540|True
+REQUIRED|v6.xps.liuhaobin.top:64540|True
+REQUIRED|v4.xps.liuhaobin.top:64540|True
+REQUIRED|ssh.xps.liuhaobin.top:50258|True
+REQUIRED|ssh-v6.xps.liuhaobin.top:50258|True
+REQUIRED|ssh-v4.xps.liuhaobin.top:50258|True
+TEXT|88FRP v3.7.0
+TEXT|System Menu Bar
+TEXT|System
+TEXT|Minimize
+TEXT|Maximize
+TEXT|Close
+TEXT|账户
+TEXT|账户
+TEXT|概览
+TEXT|概览
+TEXT|服务
+TEXT|服务
+TEXT|远程访问
+TEXT|远程访问
+TEXT|设置
+TEXT|设置
+TEXT|远程访问
+TEXT|远程桌面与 SSH 都提供自动、IPv6 专用、IPv4 专用三条线路。
+TEXT|本机后台已连接 · 22:12:59
+TEXT|导航
+TEXT|导航
+TEXT|刷新
+TEXT|刷新
+TEXT|远程桌面
+TEXT|Windows 远程桌面
+TEXT|登录使用这台电脑的 Microsoft 账户邮箱和账户密码，不能使用 PIN。
+TEXT|自动线路（推荐）
+TEXT|IPv4 和 IPv6 网络都能连接
+TEXT|复制
+TEXT|复制
+TEXT|IPv6 专用
+TEXT|强制直连设备的公网 IPv6
+TEXT|复制
+TEXT|复制
+TEXT|IPv4 专用
+TEXT|强制经 88FRP 节点连接
+TEXT|复制
+TEXT|复制
+TEXT|在 Windows 搜索“远程桌面连接”，粘贴地址后输入账户密码即可。
+TEXT|SSH
+TEXT|三条线路已生成
+TEXT|把命令中的 <用户名> 换成这台电脑的 Windows 登录名。
+TEXT|自动线路（推荐）
+TEXT|按当前网络自动选择 IPv6 或 IPv4
+TEXT|复制
+TEXT|复制
+TEXT|IPv6 专用
+TEXT|只解析到设备的公网 IPv6
+TEXT|复制
+TEXT|复制
+TEXT|IPv4 专用
+TEXT|只解析到 88FRP 的 IPv4 节点
+TEXT|复制
+TEXT|复制
+TEXT|本地 SSH 端口可达 · 本地端口 22
+TEXT|连接通道正常
+TEXT|SSH 设置
+TEXT|SSH 设置
+VALUE|xps.liuhaobin.top:64540
+VALUE|v6.xps.liuhaobin.top:64540
+VALUE|v4.xps.liuhaobin.top:64540
+VALUE|ssh.xps.liuhaobin.top:50258
+VALUE|ssh-v6.xps.liuhaobin.top:50258
+VALUE|ssh-v4.xps.liuhaobin.top:50258
+=== 设置 ===
+WINDOW|0,0,1212,1950
+TEXT_COUNT|51
+HORIZONTAL_OVERFLOW|0
+REQUIRED|设备|True
+REQUIRED|域名与证书|True
+REQUIRED|公网地址自动跟随|True
+REQUIRED|高级与诊断|True
+TEXT|88FRP v3.7.0
+TEXT|System Menu Bar
+TEXT|System
+TEXT|Minimize
+TEXT|Maximize
+TEXT|Close
+TEXT|账户
+TEXT|账户
+TEXT|概览
+TEXT|概览
+TEXT|服务
+TEXT|服务
+TEXT|远程访问
+TEXT|远程访问
+TEXT|设置
+TEXT|设置
+TEXT|设置
+TEXT|设备名称、公网地址和连接方式。
+TEXT|本机后台已连接 · 22:12:59
+TEXT|导航
+TEXT|导航
+TEXT|刷新
+TEXT|刷新
+TEXT|设备
+TEXT|日常只需要维护名称、域名和自动启动。网络细节已收进高级设置。
+TEXT|设备名称
+TEXT|显示在入口页上的名称
+TEXT|设备主域名
+TEXT|例如 xps.example.com
+TEXT|统一入口端口
+TEXT|网页服务共用一个端口
+TEXT|IPv6 检测
+TEXT|自动检测失败时可手填
+TEXT|登录 Windows 后自动恢复服务入口
+TEXT|登录 Windows 后自动恢复服务入口
+TEXT|保存设备设置
+TEXT|保存设备设置
+TEXT|域名与证书
+TEXT|已授权
+TEXT|地址变化会自动同步解析，HTTPS 证书也会自动续期。
+TEXT|区域：liuhaobin.top  ·  TTL：60  ·  最近同步：2026-11-23 16:28:48
+TEXT|域名授权设置
+TEXT|域名授权设置
+TEXT|公网地址自动跟随
+TEXT|每 5 秒检查一次本机地址，只有地址变化时才更新解析。
+TEXT|立即同步
+TEXT|立即同步
+TEXT|DNS 记录（高级）
+TEXT|DNS 记录（高级）
+TEXT|高级与诊断
+TEXT|高级与诊断
+VALUE|XPS 主机
+VALUE|xps.liuhaobin.top
+VALUE|7777
+=== 设置高级与诊断 ===
+REQUIRED|Windows 防火墙|True
+REQUIRED|开放所需端口|True
+REQUIRED|连接通道|True
+ADVANCED_TEXT|88FRP v3.7.0
+ADVANCED_TEXT|System Menu Bar
+ADVANCED_TEXT|System
+ADVANCED_TEXT|Minimize
+ADVANCED_TEXT|Maximize
+ADVANCED_TEXT|Close
+ADVANCED_TEXT|账户
+ADVANCED_TEXT|账户
+ADVANCED_TEXT|概览
+ADVANCED_TEXT|概览
+ADVANCED_TEXT|服务
+ADVANCED_TEXT|服务
+ADVANCED_TEXT|远程访问
+ADVANCED_TEXT|远程访问
+ADVANCED_TEXT|设置
+ADVANCED_TEXT|设置
+ADVANCED_TEXT|设置
+ADVANCED_TEXT|设备名称、公网地址和连接方式。
+ADVANCED_TEXT|本机后台已连接 · 22:13:14
+ADVANCED_TEXT|导航
+ADVANCED_TEXT|导航
+ADVANCED_TEXT|刷新
+ADVANCED_TEXT|刷新
+ADVANCED_TEXT|设备
+ADVANCED_TEXT|日常只需要维护名称、域名和自动启动。网络细节已收进高级设置。
+ADVANCED_TEXT|设备名称
+ADVANCED_TEXT|显示在入口页上的名称
+ADVANCED_TEXT|设备主域名
+ADVANCED_TEXT|例如 xps.example.com
+ADVANCED_TEXT|统一入口端口
+ADVANCED_TEXT|网页服务共用一个端口
+ADVANCED_TEXT|IPv6 检测
+ADVANCED_TEXT|自动检测失败时可手填
+ADVANCED_TEXT|登录 Windows 后自动恢复服务入口
+ADVANCED_TEXT|登录 Windows 后自动恢复服务入口
+ADVANCED_TEXT|保存设备设置
+ADVANCED_TEXT|保存设备设置
+ADVANCED_TEXT|域名与证书
+ADVANCED_TEXT|已授权
+ADVANCED_TEXT|地址变化会自动同步解析，HTTPS 证书也会自动续期。
+ADVANCED_TEXT|区域：liuhaobin.top  ·  TTL：60  ·  最近同步：2026-11-23 16:28:48
+ADVANCED_TEXT|域名授权设置
+ADVANCED_TEXT|域名授权设置
+ADVANCED_TEXT|公网地址自动跟随
+ADVANCED_TEXT|每 5 秒检查一次本机地址，只有地址变化时才更新解析。
+ADVANCED_TEXT|立即同步
+ADVANCED_TEXT|立即同步
+ADVANCED_TEXT|DNS 记录（高级）
+ADVANCED_TEXT|DNS 记录（高级）
+ADVANCED_TEXT|高级与诊断
+ADVANCED_TEXT|高级与诊断
+ADVANCED_TEXT|运行状态与日志
+ADVANCED_TEXT|运行状态与日志
+ADVANCED_TEXT|重新连接来源
+ADVANCED_TEXT|重新连接来源
+ADVANCED_TEXT|重启服务
+ADVANCED_TEXT|重启服务
+ADVANCED_TEXT|Windows 防火墙
+ADVANCED_TEXT|防火墙已关闭
+ADVANCED_TEXT|Windows 防火墙当前未启用，公网端口不会被本机防火墙拦截。
+ADVANCED_TEXT|开放所需端口
+ADVANCED_TEXT|开放所需端口
+ADVANCED_TEXT|连接通道
+ADVANCED_TEXT|SSH 安全入口
+ADVANCED_TEXT|公网端口 50258
+ADVANCED_TEXT|运行中
+ADVANCED_TEXT|远程桌面直连
+ADVANCED_TEXT|公网端口 64540
+ADVANCED_TEXT|运行中

@@ -9,8 +9,10 @@ const { AccessCenterService } = require("./access-center-service");
 const { ConsoleAuthService } = require("./console-auth-service");
 const { DomainBindingService } = require("./domain-binding-service");
 const { WindowsCredentialStore } = require("./windows-credential-store");
+const { GatewayService } = require("./gateway/gateway-service");
 const {
   DEFAULT_DATA_DIR,
+  getDefaultCaddyBinaryPath,
   getDefaultFrpcBinaryPath,
 } = require("../shared/constants");
 
@@ -43,6 +45,7 @@ async function createAppContext(options = {}) {
   const tunnelService = new TunnelService({ store });
   const credentialStore = options.credentialStore || new WindowsCredentialStore();
   const frpcBinaryPath = options.frpcBinaryPath || process.env.FRPC_BINARY_PATH || getDefaultFrpcBinaryPath();
+  const caddyBinaryPath = options.caddyBinaryPath || process.env.CADDY_BINARY_PATH || getDefaultCaddyBinaryPath();
   const frpAccountService = new FrpAccountService({ store, credentialStore });
 
   const processManager = new ProcessManager({
@@ -69,6 +72,22 @@ async function createAppContext(options = {}) {
   const accessCenterService = new AccessCenterService({
     store, tunnelService, credentialStore, logger, frpcBinaryPath, domainBindingService,
   });
+  const instanceService = new InstanceService({ store });
+  const syncService = new SyncService({ store, runtimeService, logger, tunnelService, frpAccountService });
+  const gatewayService = new GatewayService({
+    store,
+    logger,
+    credentialStore,
+    processManager,
+    instanceService,
+    tunnelService,
+    syncService,
+    domainBindingService,
+    frpcBinaryPath,
+    caddyBinaryPath,
+    adminPort: options.adminPort || Number(process.env.PORT) || 8801,
+  });
+  await gatewayService.initialize();
 
   return {
     logger,
@@ -76,13 +95,14 @@ async function createAppContext(options = {}) {
     runtimeService,
     settings,
     store,
-    instanceService: new InstanceService({ store }),
-    syncService: new SyncService({ store, runtimeService, logger, tunnelService, frpAccountService }),
+    instanceService,
+    syncService,
     frpAccountService,
     tunnelService,
     accessCenterService,
     consoleAuthService,
     domainBindingService,
+    gatewayService,
   };
 }
 

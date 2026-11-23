@@ -1,0 +1,227 @@
+{
+  "errors": [],
+  "httpErrors": [],
+  "layout": {
+    "1920": {
+      "overview": {
+        "viewport": 1920,
+        "docWidth": 1920,
+        "bodyWidth": 1920,
+        "horizontalOverflow": false,
+        "bad": [],
+        "railWidth": 240
+      },
+      "services": {
+        "viewport": 1920,
+        "docWidth": 1920,
+        "bodyWidth": 1920,
+        "horizontalOverflow": false,
+        "bad": [],
+        "railWidth": 240
+      },
+      "remote": {
+        "viewport": 1920,
+        "docWidth": 1920,
+        "bodyWidth": 1920,
+        "horizontalOverflow": false,
+        "bad": [],
+        "railWidth": 240
+      },
+      "settings": {
+        "viewport": 1920,
+        "docWidth": 1920,
+        "bodyWidth": 1920,
+        "horizontalOverflow": false,
+        "bad": [],
+        "railWidth": 240
+      }
+    },
+    "1440": {
+      "overview": {
+        "viewport": 1440,
+        "docWidth": 1440,
+        "bodyWidth": 1440,
+        "horizontalOverflow": false,
+        "bad": [],
+        "railWidth": 240
+      },
+      "services": {
+        "viewport": 1440,
+        "docWidth": 1440,
+        "bodyWidth": 1440,
+        "horizontalOverflow": false,
+        "bad": [],
+        "railWidth": 240
+      },
+      "remote": {
+        "viewport": 1440,
+        "docWidth": 1440,
+        "bodyWidth": 1440,
+        "horizontalOverflow": false,
+        "bad": [],
+        "railWidth": 240
+      },
+      "settings": {
+        "viewport": 1440,
+        "docWidth": 1440,
+        "bodyWidth": 1440,
+        "horizontalOverflow": false,
+        "bad": [],
+        "railWidth": 240
+      }
+    },
+    "1000": {
+      "overview": {
+        "viewport": 1000,
+        "docWidth": 1000,
+        "bodyWidth": 1000,
+        "horizontalOverflow": false,
+        "bad": [],
+        "railWidth": 78
+      },
+      "services": {
+        "viewport": 1000,
+        "docWidth": 1000,
+        "bodyWidth": 1000,
+        "horizontalOverflow": false,
+        "bad": [],
+        "railWidth": 78
+      },
+      "remote": {
+        "viewport": 1000,
+        "docWidth": 1000,
+        "bodyWidth": 1000,
+        "horizontalOverflow": false,
+        "bad": [],
+        "railWidth": 78
+      },
+      "settings": {
+        "viewport": 1000,
+        "docWidth": 1000,
+        "bodyWidth": 1000,
+        "horizontalOverflow": false,
+        "bad": [],
+        "railWidth": 78
+      }
+    },
+    "390": {
+      "overview": {
+        "viewport": 390,
+        "docWidth": 390,
+        "bodyWidth": 390,
+        "horizontalOverflow": false,
+        "bad": [],
+        "railWidth": 390
+      },
+      "services": {
+        "viewport": 390,
+        "docWidth": 390,
+        "bodyWidth": 390,
+        "horizontalOverflow": false,
+        "bad": [],
+        "railWidth": 390
+      },
+      "remote": {
+        "viewport": 390,
+        "docWidth": 390,
+        "bodyWidth": 390,
+        "horizontalOverflow": false,
+        "bad": [],
+        "railWidth": 390
+      },
+      "settings": {
+        "viewport": 390,
+        "docWidth": 390,
+        "bodyWidth": 390,
+        "horizontalOverflow": false,
+        "bad": [],
+        "railWidth": 390
+      }
+    }
+  },
+  "portalLayout": {
+    "1440": {
+      "viewport": 1440,
+      "docWidth": 1440,
+      "bodyWidth": 1440,
+      "horizontalOverflow": false,
+      "bad": [],
+      "railWidth": 0
+    },
+    "390": {
+      "viewport": 390,
+      "docWidth": 390,
+      "bodyWidth": 390,
+      "horizontalOverflow": false,
+      "bad": [],
+      "railWidth": 0
+    }
+  },
+  "checks": {
+    "overviewWebV6": true,
+    "overviewWebV4": true,
+    "remoteRdpAuto": true,
+    "remoteRdpV6": true,
+    "remoteRdpV4": true,
+    "remoteSshAuto": true,
+    "remoteSshV6": true,
+    "remoteSshV4": true,
+    "portalWebRoutes": true,
+    "portalRdpThree": true,
+    "portalSshThree": true,
+    "version35": true,
+    "noLegacyTunnel": true
+  },
+  "portalRoutes": [
+    {
+      "line": "auto",
+      "text": "自动双栈",
+      "href": "https://xps.liuhaobin.top:7777/",
+      "hidden": false
+    },
+    {
+      "line": "ipv6",
+      "text": "IPv6 专用",
+      "href": "https://v6.xps.liuhaobin.top:7777/",
+      "hidden": false
+    },
+    {
+      "line": "ipv4",
+      "text": "IPv4 专用",
+      "href": "https://v4.xps.liuhaobin.top:7777/",
+      "hidden": false
+    }
+  ],
+  "portalRemotePanels": [
+    {
+      "card": "SSH",
+      "tab": "自动选路",
+      "endpoint": "ssh -p 50258 <用户名>@ssh.xps.liuhaobin.top"
+    },
+    {
+      "card": "SSH",
+      "tab": "IPv6 专用",
+      "endpoint": "ssh -p 50258 <用户名>@ssh-v6.xps.liuhaobin.top"
+    },
+    {
+      "card": "SSH",
+      "tab": "IPv4 专用",
+      "endpoint": "ssh -p 50258 <用户名>@ssh-v4.xps.liuhaobin.top"
+    },
+    {
+      "card": "远程桌面",
+      "tab": "自动双栈",
+      "endpoint": "xps.liuhaobin.top:64540"
+    },
+    {
+      "card": "远程桌面",
+      "tab": "IPv6 专用",
+      "endpoint": "v6.xps.liuhaobin.top:64540"
+    },
+    {
+      "card": "远程桌面",
+      "tab": "IPv4 专用",
+      "endpoint": "v4.xps.liuhaobin.top:64540"
+    }
+  ]
+}

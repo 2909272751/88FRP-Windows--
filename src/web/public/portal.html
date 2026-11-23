@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#07101d">
+  <title>设备入口 · 88FRP</title>
+  <link rel="stylesheet" href="/css/portal.css?v=3.7.0">
+</head>
+<body>
+  <div class="page">
+    <header class="site-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">88</span>
+        <span class="brand-copy">
+          <strong>88FRP</strong>
+          <span>设备入口</span>
+        </span>
+      </div>
+      <div class="header-device">
+        <span class="live-state"><span class="live-dot" id="connection-dot"></span><span id="connection">正在连接</span></span>
+        <strong id="deviceName" hidden>XPS 主机</strong>
+      </div>
+      <a class="manage-link" id="portalAdminLink" href="#" hidden aria-label="进入管理">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.37a1.7 1.7 0 0 0-1 .63 1.7 1.7 0 0 0-.37 1.07V21h-4v-.08A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.23 15a1.7 1.7 0 0 0-.63-1 1.7 1.7 0 0 0-1.07-.37H2.5v-4h.08A1.7 1.7 0 0 0 4.1 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 8.5 4.23a1.7 1.7 0 0 0 1-.63 1.7 1.7 0 0 0 .37-1.07V2.5h4v.08A1.7 1.7 0 0 0 14.9 4.1a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.37 8.5c.15.38.37.72.63 1 .3.29.68.45 1.07.47h.08v4h-.08A1.7 1.7 0 0 0 19.4 15Z"/></svg>
+      </a>
+    </header>
+
+    <main class="content">
+      <section class="device-heading" aria-labelledby="pageTitle">
+        <div class="device-heading-copy">
+          <span class="device-kicker">我的设备</span>
+          <h1 id="pageTitle"><span id="heroDevice">XPS 主机</span></h1>
+          <p id="pageSubtitle">正在读取这台设备的服务。</p>
+          <div class="connection-inline">
+            <span class="connection-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 12h16M12 4v16"/><circle cx="12" cy="12" r="9"/></svg>
+            </span>
+            <span id="connection-detail">正在读取当前地址…</span>
+          </div>
+        </div>
+        <div class="device-stats" aria-label="设备状态">
+          <div><span>服务</span><strong id="statServiceTotal">-</strong></div>
+          <div><span>线路</span><strong>自动双栈</strong></div>
+          <div><span>状态</span><strong class="is-ok">运行中</strong></div>
+        </div>
+      </section>
+
+      <nav class="web-routes" id="webRoutes" aria-label="网页访问线路" hidden>
+        <span class="web-routes-label">访问线路</span>
+        <a class="web-route" data-line="auto" href="#" target="_blank" rel="noopener"><i></i><span>自动双栈</span></a>
+        <a class="web-route" data-line="ipv6" href="#" target="_blank" rel="noopener"><i></i><span>IPv6 专用</span></a>
+        <a class="web-route" data-line="ipv4" href="#" target="_blank" rel="noopener"><i></i><span>IPv4 专用</span></a>
+      </nav>
+
+      <section class="service-section" aria-labelledby="servicesTitle">
+        <header class="section-heading">
+          <div>
+            <h2 id="servicesTitle">服务</h2>
+            <p>选择一个入口，直接打开。</p>
+          </div>
+          <span class="section-count" id="serviceCount">正在读取</span>
+        </header>
+        <div class="grid" id="portalGrid" aria-live="polite" aria-busy="true"></div>
+      </section>
+
+      <section class="remote" id="remoteAccess" hidden aria-labelledby="remoteTitle">
+        <header class="section-heading remote-heading">
+          <div>
+            <h2 id="remoteTitle">远程访问</h2>
+            <p>命令行与远程桌面，按当前网络自动选择最快线路。</p>
+          </div>
+          <span class="route-legend"><i></i>IPv6 优先 <i></i>IPv4 备用</span>
+        </header>
+        <div class="remote-grid" id="remoteGrid"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>由 88FRP 安全连接</span>
+      <span>IPv6 优先 · IPv4 自动备用</span>
+    </footer>
+  </div>
+  <script src="/js/portal.js?v=3.7.0" defer></script>
+</body>
+</html>

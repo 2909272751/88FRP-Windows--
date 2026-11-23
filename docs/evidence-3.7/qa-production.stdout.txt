@@ -1,0 +1,244 @@
+{
+  "errors": [],
+  "httpErrors": [],
+  "layout": {
+    "1920": {
+      "overview": {
+        "viewport": 1920,
+        "docWidth": 1920,
+        "bodyWidth": 1920,
+        "horizontalOverflow": false,
+        "bad": [],
+        "tiny": []
+      },
+      "services": {
+        "viewport": 1920,
+        "docWidth": 1920,
+        "bodyWidth": 1920,
+        "horizontalOverflow": false,
+        "bad": [],
+        "tiny": []
+      },
+      "remote": {
+        "viewport": 1920,
+        "docWidth": 1920,
+        "bodyWidth": 1920,
+        "horizontalOverflow": false,
+        "bad": [],
+        "tiny": []
+      },
+      "settings": {
+        "viewport": 1920,
+        "docWidth": 1920,
+        "bodyWidth": 1920,
+        "horizontalOverflow": false,
+        "bad": [],
+        "tiny": []
+      }
+    },
+    "1440": {
+      "overview": {
+        "viewport": 1440,
+        "docWidth": 1440,
+        "bodyWidth": 1440,
+        "horizontalOverflow": false,
+        "bad": [],
+        "tiny": []
+      },
+      "services": {
+        "viewport": 1440,
+        "docWidth": 1440,
+        "bodyWidth": 1440,
+        "horizontalOverflow": false,
+        "bad": [],
+        "tiny": []
+      },
+      "remote": {
+        "viewport": 1440,
+        "docWidth": 1440,
+        "bodyWidth": 1440,
+        "horizontalOverflow": false,
+        "bad": [],
+        "tiny": []
+      },
+      "settings": {
+        "viewport": 1440,
+        "docWidth": 1440,
+        "bodyWidth": 1440,
+        "horizontalOverflow": false,
+        "bad": [],
+        "tiny": []
+      }
+    },
+    "1000": {
+      "overview": {
+        "viewport": 1000,
+        "docWidth": 1000,
+        "bodyWidth": 1000,
+        "horizontalOverflow": false,
+        "bad": [],
+        "tiny": []
+      },
+      "services": {
+        "viewport": 1000,
+        "docWidth": 1000,
+        "bodyWidth": 1000,
+        "horizontalOverflow": false,
+        "bad": [],
+        "tiny": []
+      },
+      "remote": {
+        "viewport": 1000,
+        "docWidth": 1000,
+        "bodyWidth": 1000,
+        "horizontalOverflow": false,
+        "bad": [],
+        "tiny": []
+      },
+      "settings": {
+        "viewport": 1000,
+        "docWidth": 1000,
+        "bodyWidth": 1000,
+        "horizontalOverflow": false,
+        "bad": [],
+        "tiny": []
+      }
+    },
+    "390": {
+      "overview": {
+        "viewport": 390,
+        "docWidth": 390,
+        "bodyWidth": 390,
+        "horizontalOverflow": false,
+        "bad": [],
+        "tiny": []
+      },
+      "services": {
+        "viewport": 390,
+        "docWidth": 390,
+        "bodyWidth": 390,
+        "horizontalOverflow": false,
+        "bad": [],
+        "tiny": []
+      },
+      "remote": {
+        "viewport": 390,
+        "docWidth": 390,
+        "bodyWidth": 390,
+        "horizontalOverflow": false,
+        "bad": [],
+        "tiny": []
+      },
+      "settings": {
+        "viewport": 390,
+        "docWidth": 390,
+        "bodyWidth": 390,
+        "horizontalOverflow": false,
+        "bad": [],
+        "tiny": []
+      }
+    }
+  },
+  "portalLayout": {
+    "1440": {
+      "viewport": 1440,
+      "docWidth": 1440,
+      "bodyWidth": 1440,
+      "horizontalOverflow": false,
+      "bad": [],
+      "tiny": []
+    },
+    "390": {
+      "viewport": 390,
+      "docWidth": 390,
+      "bodyWidth": 390,
+      "horizontalOverflow": false,
+      "bad": [],
+      "tiny": []
+    }
+  },
+  "loginLayout": {
+    "1440": {
+      "viewport": 1440,
+      "docWidth": 1440,
+      "bodyWidth": 1440,
+      "horizontalOverflow": false,
+      "bad": [],
+      "tiny": []
+    },
+    "390": {
+      "viewport": 390,
+      "docWidth": 390,
+      "bodyWidth": 390,
+      "horizontalOverflow": false,
+      "bad": [],
+      "tiny": []
+    }
+  },
+  "checks": {
+    "overviewWebV6": true,
+    "remoteRdpAuto": true,
+    "remoteRdpV6": true,
+    "remoteSshAuto": true,
+    "remoteSshV6": true,
+    "version37": true,
+    "settingsFirewallMoved": true,
+    "settingsAdvancedVisible": true,
+    "loginVersion37": true,
+    "allVisibleTextAtLeast11": true,
+    "noLegacyTunnel": true,
+    "noHorizontalOverflow": true
+  },
+  "portalRoutes": [
+    {
+      "line": "auto",
+      "text": "�Զ�˫ջ",
+      "href": "https://xps.liuhaobin.top:7777/",
+      "hidden": false
+    },
+    {
+      "line": "ipv6",
+      "text": "IPv6 ר��",
+      "href": "https://v6.xps.liuhaobin.top:7777/",
+      "hidden": false
+    },
+    {
+      "line": "ipv4",
+      "text": "IPv4 ר��",
+      "href": "https://v4.xps.liuhaobin.top:7777/",
+      "hidden": false
+    }
+  ],
+  "portalRemotePanels": [
+    {
+      "card": "SSH",
+      "tab": "�Զ�ѡ·",
+      "endpoint": "ssh -p 50258 <�û���>@ssh.xps.liuhaobin.top"
+    },
+    {
+      "card": "SSH",
+      "tab": "IPv6 ר��",
+      "endpoint": "ssh -p 50258 <�û���>@ssh-v6.xps.liuhaobin.top"
+    },
+    {
+      "card": "SSH",
+      "tab": "IPv4 ר��",
+      "endpoint": "ssh -p 50258 <�û���>@ssh-v4.xps.liuhaobin.top"
+    },
+    {
+      "card": "Զ������",
+      "tab": "�Զ�˫ջ",
+      "endpoint": "xps.liuhaobin.top:64540"
+    },
+    {
+      "card": "Զ������",
+      "tab": "IPv6 ר��",
+      "endpoint": "v6.xps.liuhaobin.top:64540"
+    },
+    {
+      "card": "Զ������",
+      "tab": "IPv4 ר��",
+      "endpoint": "v4.xps.liuhaobin.top:64540"
+    }
+  ]
+}

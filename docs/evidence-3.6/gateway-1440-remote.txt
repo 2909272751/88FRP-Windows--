@@ -1,0 +1,56 @@
+88FRP
+远程入口
+运行中
+概览
+服务
+远程访问
+设置
+退出登录
+v3.6.0
+远程访问
+仅限授权用户
+本机
+远程访问
+远程访问
+
+远程桌面与 SSH 集中在这里；日常用自动线路，排障时再切换到 IPv6 或 IPv4 专用线路。
+
+远程桌面
+
+Windows 远程桌面连接
+
+已启用
+
+登录使用这台电脑的 Microsoft 账户邮箱和账户密码，不能使用 PIN。
+
+自动线路
+推荐 · 自动选择 IPv6 或 IPv4
+复制
+xps.liuhaobin.top:64540
+IPv6 专用
+强制直连
+v6.xps.liuhaobin.top:64540
+IPv4 专用
+88FRP 兜底
+v4.xps.liuhaobin.top:64540
+在 Windows 搜索“远程桌面连接”，粘贴地址后输入账户密码即可。
+SSH
+
+命令行安全登录
+
+已启用
+
+把命令中的 <用户名> 换成这台电脑的 Windows 登录名。
+
+自动线路
+推荐 · 自动选择 IPv6 或 IPv4
+ssh.xps.liuhaobin.top:50258
+IPv6 专用
+只解析 IPv6
+ssh-v6.xps.liuhaobin.top:50258
+IPv4 专用
+88FRP 兜底
+ssh-v4.xps.liuhaobin.top:50258
+在终端粘贴命令即可登录；Windows 10/11 已内置 OpenSSH 客户端。
+本地可达 · 22 · 等待连接
+SSH 设置

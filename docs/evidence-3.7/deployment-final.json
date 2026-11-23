@@ -1,0 +1,66 @@
+{
+  "checked_at": "2026-11-23T22:51:54.0618826+08:00",
+  "installed": {
+    "native_path": "C:\\Users\\29092\\AppData\\Local\\Programs\\88FRP\\88FRP.exe",
+    "native_version": "3.7.0.0",
+    "native_sha256": "718B8DAB4781696B406625C71769FE154506642601959DE5FAC7E6CF6187A14A",
+    "web_path": "C:\\Users\\29092\\AppData\\Local\\Programs\\88FRP\\88frp-web.exe",
+    "web_sha256": "2728374302BCC1EB024AF6790132559811BF21C6A698C7118C2A648FA504E098",
+    "public_dir": "C:\\Users\\29092\\AppData\\Local\\88frp-node\\runtime\\public",
+    "startup": "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File \"C:\\Users\\29092\\AppData\\Local\\Programs\\88FRP\\start-desktop.ps1\""
+  },
+  "assets": [
+    {
+      "path": "C:\\实用软件开发\\88frp-windows-src\\dist\\88FRP-Windows-Setup-3.7.0.exe",
+      "bytes": 44197981,
+      "sha256": "99757525CD869BA006A31A6F2C0856E2C5AF564BAA2B4C19F691F55535DA61BF"
+    },
+    {
+      "path": "C:\\实用软件开发\\88frp-windows-src\\dist\\88FRP-Windows.zip",
+      "bytes": 64409427,
+      "sha256": "48E3B41748465EF1BFF5B3E2538DF33C68624C4FC6E8B6A0AA45EFAFEFF7A7A6"
+    }
+  ],
+  "ports": [
+    {
+      "address": "::",
+      "port": 7777,
+      "pid": 35296
+    },
+    {
+      "address": "127.0.0.1",
+      "port": 8801,
+      "pid": 29236
+    },
+    {
+      "address": "::",
+      "port": 50258,
+      "pid": 29236
+    },
+    {
+      "address": "127.0.0.1",
+      "port": 50258,
+      "pid": 29236
+    },
+    {
+      "address": "::",
+      "port": 64540,
+      "pid": 29236
+    },
+    {
+      "address": "127.0.0.1",
+      "port": 64540,
+      "pid": 29236
+    }
+  ],
+  "verification": {
+    "tests": "139 total / 138 pass / 1 non-Windows skip / 0 fail",
+    "qa_errors": 0,
+    "qa_http_errors": 0,
+    "qa_all_checks": true,
+    "endpoint_all_ok": true,
+    "settings_cold_visible_s": 0.448,
+    "settings_cold_content_s": 0.48,
+    "settings_warm_content_s": 0.071
+  }
+}

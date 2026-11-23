@@ -5,6 +5,7 @@ const DEFAULT_INSTANCE_AUTO_START_ON_BOOT = true;
 const DEFAULT_REMOTE_URL = "https://auth.88frp.com/config?secret={{secret}}";
 const {
   getArchDir,
+  getDefaultCaddyBinaryPath,
   getDefaultDataDir,
   getDefaultFrpcBinaryName,
   getDefaultFrpcBinaryPath,
@@ -23,6 +24,7 @@ module.exports = {
   DEFAULT_REMOTE_URL,
   PROJECT_ROOT,
   getArchDir,
+  getDefaultCaddyBinaryPath,
   getDefaultFrpcBinaryName,
   getDefaultFrpcBinaryPath,
 };

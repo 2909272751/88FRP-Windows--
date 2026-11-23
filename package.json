@@ -1,6 +1,6 @@
 {
   "name": "88frp-node",
-  "version": "3.2.6",
+  "version": "3.7.0",
   "private": true,
   "description": "88FRP standalone CLI, agent, and Docker web manager",
   "type": "commonjs",
@@ -15,6 +15,7 @@
     "build:web:single:linux-amd64": "node ./scripts/build-web-single-exe.js --target linux-x64",
     "build:web:single:linux-arm64": "node ./scripts/build-web-single-exe.js --target linux-arm64",
     "build:web:single:linux-all": "node ./scripts/build-web-single-exe.js --target linux-x64,linux-arm64",
+    "build:caddy:windows": "powershell -ExecutionPolicy Bypass -File ./scripts/build-caddy.ps1",
     "build:windows:native": "powershell -ExecutionPolicy Bypass -File ./scripts/build-windows-native.ps1",
     "build:windows:installer": "powershell -ExecutionPolicy Bypass -File ./scripts/build-windows-installer.ps1",
     "service:install:windows": "powershell -ExecutionPolicy Bypass -File ./scripts/install-windows-service.ps1",
@@ -22,7 +23,7 @@
     "dev:cli": "node ./src/cli/index.js menu",
     "dev:agent": "node ./src/agent/server.js",
     "dev:web": "node ./src/web/server.js",
-    "test": "node --test"
+    "test": "node --test --test-concurrency=1"
   },
   "engines": {
     "node": ">=22"

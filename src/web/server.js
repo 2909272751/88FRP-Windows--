@@ -32,14 +32,31 @@ function readCookie(header, name) {
   return "";
 }
 
+function normalizeRequestAddress(req) {
+  const forwarded = String(req.get("X-Real-IP") || "").trim();
+  if (forwarded) return forwarded;
+  return String(req.ip || req.socket?.remoteAddress || "").replace(/^::ffff:/i, "");
+}
+
 function isDesktopRequest(req) {
   const ip = String(req.ip || req.socket.remoteAddress || "");
-  return (ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1") && req.get("X-88FRP-Desktop") === "1";
+  const localSocket = ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+  const rawHost = String(req.get("host") || "").toLowerCase();
+  const host = rawHost.startsWith("[")
+    ? rawHost.slice(1, rawHost.indexOf("]"))
+    : rawHost.split(":")[0];
+  const localHost = host === "127.0.0.1" || host === "localhost" || host === "::1";
+  return localSocket && localHost && req.get("X-88FRP-Desktop") === "1";
 }
 
 async function createWebApp(options = {}) {
   await prepareRuntimeAssets();
-  const context = await createAppContext();
+  const context = await createAppContext({
+    dataDir: options.dataDir,
+    adminPort: Number(options.port || process.env.PORT) || 8801,
+    caddyBinaryPath: options.caddyBinaryPath,
+    frpcBinaryPath: options.frpcBinaryPath,
+  });
   const app = express();
   const publicDir = getPublicDir();
   const syncScheduler = context.syncService.startAutoSyncScheduler();
@@ -61,17 +78,40 @@ async function createWebApp(options = {}) {
     },
   };
   let runtimeInitialized = false;
+  let gatewayMode = false;
 
   const initializeRuntime = async () => {
     if (runtimeInitialized) return;
     await context.processManager.hydrateRuntimeState();
-    await context.runtimeService.restoreOnBoot();
-    try {
-      await context.accessCenterService.restore();
-    } catch (error) {
-      await context.logger.error(`访问中心自动恢复失败: ${error.message}`);
+    const gatewayOverview = await context.gatewayService.getOverview({ includeHealth: false });
+    gatewayMode = Boolean(gatewayOverview.initialized);
+    if (gatewayMode) {
+      try {
+        await context.processManager.stopAll({ resume: false });
+      } catch (error) {
+        await context.logger.warn(`旧实例清理未完全完成：${error.message}`);
+      }
+      try {
+        await context.accessCenterService.stop();
+      } catch (error) {
+        await context.logger.warn(`旧访问中心清理未完全完成：${error.message}`);
+      }
+      try {
+        const started = await context.gatewayService.startAll({ respectAutoStart: true });
+        if (started.skipped) await context.logger.info("统一入口未启动：设备设置已关闭开机自动启动。");
+        for (const warning of started.warnings || []) await context.logger.warn(`统一入口启动提示：${warning}`);
+      } catch (error) {
+        await context.logger.error(`统一入口自动启动失败：${error.message}`);
+      }
+    } else {
+      await context.runtimeService.restoreOnBoot();
+      try {
+        await context.accessCenterService.restore();
+      } catch (error) {
+        await context.logger.error(`访问中心自动恢复失败: ${error.message}`);
+      }
+      await scheduler.start();
     }
-    await scheduler.start();
     runtimeInitialized = true;
   };
 
@@ -86,7 +126,30 @@ async function createWebApp(options = {}) {
       service: "88frp-node-web",
       nodeVersion: process.version,
       frpc: context.processManager.getBinaryStatus(),
+      gatewayMode,
     });
+  });
+
+  app.use((_req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    next();
+  });
+
+  const requestAddress = (req) => normalizeRequestAddress(req);
+
+  app.get("/api/gateway/public", asyncHandler(async (req, res) => {
+    sendJson(res, await context.gatewayService.getPublicPortal({
+      remoteAddress: requestAddress(req),
+      host: req.get("host"),
+    }));
+  }));
+
+  app.get("/portal", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.sendFile(path.join(publicDir, "portal.html"));
   });
 
   app.get("/api/console-auth/status", asyncHandler(async (_req, res) => {
@@ -139,6 +202,85 @@ async function createWebApp(options = {}) {
 
   app.get("/api/88frp/account", asyncHandler(async (_req, res) => {
     sendJson(res, await context.frpAccountService.getStatus());
+  }));
+
+  /* ---------------------------------------------------- 单设备网关 ------ */
+
+  app.get("/api/gateway", asyncHandler(async (req, res) => {
+    sendJson(res, await context.gatewayService.getOverview({
+      remoteAddress: requestAddress(req),
+      host: req.get("host"),
+      includeHealth: req.query.health !== "0",
+    }));
+  }));
+
+  app.post("/api/gateway/migrate", asyncHandler(async (req, res) => {
+    const result = await context.gatewayService.migrate(req.body || {});
+    scheduler.stop();
+    await context.accessCenterService.stop().catch(async (error) => {
+      await context.logger.warn(`迁移后旧访问中心停止失败：${error.message}`);
+    });
+    sendJson(res, result, "统一入口已初始化。", 201);
+  }));
+
+  app.post("/api/gateway/bootstrap", asyncHandler(async (req, res) => {
+    const result = await context.gatewayService.bootstrap(req.body || {});
+    scheduler.stop();
+    await context.accessCenterService.stop().catch(async (error) => {
+      await context.logger.warn(`初始化后旧访问中心停止失败：${error.message}`);
+    });
+    sendJson(res, result, "本机连接来源已创建并初始化。", 201);
+  }));
+
+  app.put("/api/gateway/device", asyncHandler(async (req, res) => {
+    sendJson(res, await context.gatewayService.updateDevice(req.body || {}), "设备设置已保存。");
+  }));
+
+  app.post("/api/gateway/cloudflare/token", asyncHandler(async (req, res) => {
+    const result = await context.gatewayService.saveCloudflareToken(req.body || {});
+    sendJson(res, result, "Cloudflare 授权已验证并保存。");
+  }));
+
+  app.post("/api/gateway/dns/sync", asyncHandler(async (req, res) => {
+    const result = await context.gatewayService.syncDns({
+      force: true,
+      reason: "manual",
+    });
+    sendJson(res, result, result.skipped ? "解析没有变化。" : "DNS 解析已同步。");
+  }));
+
+  app.post("/api/gateway/services", asyncHandler(async (req, res) => {
+    const result = await context.gatewayService.addService(req.body || {});
+    sendJson(res, result, "服务已添加。", 201);
+  }));
+
+  app.put("/api/gateway/services/:id", asyncHandler(async (req, res) => {
+    sendJson(res, await context.gatewayService.updateService(req.params.id, req.body || {}), "服务已更新。");
+  }));
+
+  app.delete("/api/gateway/services/:id", asyncHandler(async (req, res) => {
+    sendJson(res, await context.gatewayService.deleteService(req.params.id), "服务已删除。");
+  }));
+
+  app.put("/api/gateway/ssh", asyncHandler(async (req, res) => {
+    sendJson(res, await context.gatewayService.updateSsh(req.body || {}), "SSH 设置已保存。");
+  }));
+
+  app.post("/api/gateway/source/sync", asyncHandler(async (_req, res) => {
+    const result = await context.gatewayService.syncSourceConfig();
+    sendJson(res, result, result.changed ? "连接来源配置已更新。" : "连接来源配置没有变化。");
+  }));
+
+  app.post("/api/gateway/firewall/open", asyncHandler(async (_req, res) => {
+    sendJson(res, await context.gatewayService.openFirewall(), "所需端口已加入 Windows 防火墙规则。");
+  }));
+
+  app.post("/api/gateway/restart", asyncHandler(async (_req, res) => {
+    sendJson(res, await context.gatewayService.restartRuntime(), "统一入口已重启。");
+  }));
+
+  app.get("/api/gateway/logs", asyncHandler(async (req, res) => {
+    sendJson(res, await context.gatewayService.getLogs(Number(req.query.tail || 200)));
   }));
 
   app.get("/api/access-center", asyncHandler(async (_req, res) => {
@@ -349,8 +491,17 @@ async function createWebApp(options = {}) {
     if (isDesktopRequest(req) || await context.consoleAuthService.verify(readCookie(req.headers.cookie, "88frp_console"))) return next();
     return res.redirect(302, "/login");
   }));
+  app.get("/legacy", (_req, res) => res.sendFile(path.join(publicDir, "index.html")));
+  app.get("/", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.sendFile(path.join(publicDir, "gateway.html"));
+  });
+  app.get("/gateway", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.sendFile(path.join(publicDir, "gateway.html"));
+  });
   app.use((_req, res) => {
-    res.sendFile(path.join(publicDir, "index.html"));
+    res.sendFile(path.join(publicDir, "gateway.html"));
   });
 
   app.use((error, _req, res, _next) => {
@@ -386,7 +537,7 @@ function listenWebApp(app, port, host) {
 }
 
 async function startWebServer(options = {}) {
-  const host = options.host || process.env.HOST || "0.0.0.0";
+  const host = options.host || process.env.HOST || "127.0.0.1";
   const port = Number(options.port || process.env.PORT || 8801);
   const lockPath = options.lockPath || path.join(getRuntimeRoot(), "web-backend.lock");
   const processLock = acquireProcessLock(lockPath);
@@ -394,6 +545,8 @@ async function startWebServer(options = {}) {
   let requestedShutdown = null;
   try {
     bundle = await createWebApp({
+      ...options,
+      port,
       initializeRuntime: false,
       requestShutdown: (shutdownOptions) => requestedShutdown && requestedShutdown(shutdownOptions),
     });
@@ -435,10 +588,16 @@ async function startWebServer(options = {}) {
     } catch (error) {
       await context.logger.error(`访问中心停止清理未完全完成: ${error.message}`);
     }
+    try {
+      await context.gatewayService.stopAll();
+    } catch (error) {
+      await context.logger.error(`统一入口停止清理未完全完成: ${error.message}`);
+    }
     server.close(() => {
       processLock.release();
       process.exit(0);
     });
+    server.closeAllConnections?.();
   }
 
   requestedShutdown = shutdown;

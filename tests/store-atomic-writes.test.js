@@ -62,3 +62,30 @@ test("保存中断保留完整原配置，不留下临时文件，后续保存�
     await fs.rm(root, { recursive: true, force: true });
   }
 });
+
+test("Windows 文件短暂占用时重试原子替换", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "88frp-replace-retry-"));
+  const file = path.join(root, "runtime.json");
+  const store = new Store({ dataDir: root });
+  const originalRename = fs.rename;
+  let attempts = 0;
+  try {
+    await fs.writeFile(file, JSON.stringify({ status: "old" }));
+    fs.rename = async (temporary, destination) => {
+      attempts += 1;
+      if (attempts <= 12) {
+        throw Object.assign(new Error("file is temporarily locked"), { code: "EPERM" });
+      }
+      return originalRename(temporary, destination);
+    };
+
+    await store.writeJson(file, { status: "running" });
+
+    assert.equal(attempts, 13);
+    assert.deepEqual(JSON.parse(await fs.readFile(file, "utf8")), { status: "running" });
+    assert.deepEqual(await fs.readdir(root), ["runtime.json"]);
+  } finally {
+    fs.rename = originalRename;
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});

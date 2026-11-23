@@ -10,6 +10,7 @@ $ErrorActionPreference = "Stop"
 # stays where the shell started. Anchor everything to the script location.
 $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $Source = Join-Path $ProjectRoot "src\windows-launcher\WpfClient.cs"
+$GatewaySource = Join-Path $ProjectRoot "src\windows-launcher\GatewayWorkspace.cs"
 $DomainSource = Join-Path $ProjectRoot "src\windows-launcher\DomainTab.cs"
 $ConsoleSecuritySource = Join-Path $ProjectRoot "src\windows-launcher\ConsoleSecurityWindow.cs"
 $ThemeSource = Join-Path $ProjectRoot "src\windows-launcher\ClientThemePalette.cs"
@@ -17,6 +18,8 @@ $UiStylesSource = Join-Path $ProjectRoot "src\windows-launcher\ClientUiStyles.cs
 $DistDir = Join-Path $ProjectRoot "dist"
 $DefaultPublishDir = Join-Path $DistDir "88FRP-Windows"
 $BackendExe = Join-Path $DistDir "88frp-web.exe"
+$CaddyExe = Join-Path $ProjectRoot "bin\amd64\caddy.exe"
+$CaddyBuildScript = Join-Path $ProjectRoot "scripts\build-caddy.ps1"
 $Csc = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 $WpfDir = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\WPF"
 $IconPath = Join-Path $ProjectRoot "assets\88frp-logo.ico"
@@ -34,6 +37,10 @@ if (-not (Test-Path $DomainSource)) { throw "Cannot find DomainTab.cs: $DomainSo
 if (-not (Test-Path $BackendExe)) {
   Push-Location $ProjectRoot
   try { npm run build:web:single } finally { Pop-Location }
+}
+if (-not (Test-Path $CaddyExe)) {
+  & powershell -ExecutionPolicy Bypass -File $CaddyBuildScript
+  if ($LASTEXITCODE -ne 0) { throw "Caddy build failed." }
 }
 
 New-Item -ItemType Directory -Force -Path $PublishDir | Out-Null
@@ -63,6 +70,7 @@ $argList.Add("/win32manifest:$ManifestPath")
 $argList.Add("/out:$OutputExe")
 foreach ($r in $refs) { $argList.Add("/reference:$r") }
 $argList.Add($Source)
+$argList.Add($GatewaySource)
 $argList.Add($DomainSource)
 $argList.Add($ConsoleSecuritySource)
 $argList.Add($ThemeSource)
@@ -75,17 +83,20 @@ if ($LASTEXITCODE -ne 0) { throw "Native client compilation failed." }
 Copy-Item -Force (Join-Path $ProjectRoot "scripts\windows-upgrade.ps1") (Join-Path $PublishDir "windows-upgrade.ps1")
 Copy-Item -Force (Join-Path $ProjectRoot "scripts\configure-startup.ps1") (Join-Path $PublishDir "configure-startup.ps1")
 Copy-Item -Force $BackendExe (Join-Path $PublishDir "88frp-web.exe")
+Copy-Item -Force $CaddyExe (Join-Path $PublishDir "caddy.exe")
 Copy-Item -Force (Join-Path $ProjectRoot "assets\88frp-logo.png") (Join-Path $PublishDir "88frp-logo.png")
 Copy-Item -Force $IconPath (Join-Path $PublishDir "88frp-logo.ico")
 
 $Readme = @(
-  "88FRP Windows 3.2.6",
+  "88FRP Windows 3.7.0",
   "",
   "使用方法：",
   "1. 双击 88FRP.exe 打开原生桌面客户端。",
   "2. 首次启动可设置开机自动运行，之后可在全局设置中调整。",
   "3. 关闭窗口后保持托盘后台运行；右键托盘可打开、重启后台或退出。",
   "4. 修改隧道选择与手动分组后，点击保存更改。",
+  "5. 3.7.0 起可在左侧进入「概览」，网页、远程桌面和 SSH 均提供自动、IPv6 专用、IPv4 专用线路；",
+  "   IPv6 直连设备，IPv4 通过 88FRP 兜底，公开门户和管理后台分开。",
   "",
   "安装与升级：",
   "推荐安装包，按向导选择安装目录、快捷方式和自启动选项。",
@@ -94,7 +105,8 @@ $Readme = @(
   "",
   "数据与文件：",
   "默认数据目录为 %LOCALAPPDATA%\88frp-node；已安装时以 machine-config.json 记录的原目录为准。",
-  "迁移到其他电脑前请先备份数据，Windows 加密凭据需要重新授权。"
+  "迁移到其他电脑前请先备份数据，Windows 加密凭据需要重新授权。",
+  "统一入口审计与日志位于数据目录的 gateway 子目录；frpc.toml 含鉴权信息，禁止外传。"
 ) -join [Environment]::NewLine
 Set-Content -Path (Join-Path $PublishDir "README.txt") -Value $Readme -Encoding UTF8
 

@@ -1,3 +1,54 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>88FRP 控制台登录</title><link rel="stylesheet" href="/css/style.css?v=3.2.6"></head>
-<body class="console-login-page"><main class="console-login-card"><img src="/88frp-logo.png" alt="88FRP" class="console-login-logo"><p class="eyebrow">88FRP WINDOWS · v3.2.6</p><h1>控制台登录</h1><p>登录后管理实例、隧道和账号。</p><form id="loginForm"><label>用户名<input id="username" autocomplete="username" required></label><label>密码<input id="password" type="password" autocomplete="current-password" required></label><label class="remember-row"><input id="remember" type="checkbox"><span><strong>记住此设备</strong><small>不勾选：24 小时内无需再次登录</small></span></label><p id="message" role="status"></p><button type="submit" class="filled-button">登录控制台</button></form></main><script src="/js/console-login.js"></script></body></html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>登录 · 88FRP</title>
+  <link rel="stylesheet" href="/css/style.css?v=3.7.0">
+</head>
+<body class="console-login-page">
+  <main class="console-login-shell">
+    <section class="console-login-brand" aria-label="88FRP 远程入口">
+      <div class="console-login-brand-head">
+        <img src="/88frp-logo.png" alt="" class="console-login-logo">
+        <div>
+          <strong>88FRP</strong>
+          <span>远程入口</span>
+        </div>
+      </div>
+      <div class="console-login-pitch">
+      <p class="console-login-kicker">设备入口 · v3.7.0</p>
+        <h1>设备控制台</h1>
+        <p>管理网页服务、域名解析、远程桌面与 SSH。IPv6 优先直连，IPv4 自动兜底。</p>
+      </div>
+      <div class="console-login-route" aria-hidden="true">
+        <span class="console-login-route-dot"></span>
+        <span>IPv6 直连</span>
+        <i></i>
+        <span>自动切换</span>
+        <i></i>
+        <span>IPv4 兜底</span>
+      </div>
+    </section>
+    <section class="console-login-card" aria-labelledby="loginTitle">
+      <div class="console-login-mobile-brand">
+        <img src="/88frp-logo.png" alt="" class="console-login-logo">
+        <strong>88FRP</strong>
+      </div>
+      <p class="eyebrow">管理控制台</p>
+      <h2 id="loginTitle">欢迎回来</h2>
+      <p class="console-login-intro">登录后管理这台电脑的服务与远程访问。</p>
+      <form id="loginForm">
+        <label>用户名<input id="username" name="username" autocomplete="username" placeholder="输入管理账号" required></label>
+        <label>密码<input id="password" name="password" type="password" autocomplete="current-password" placeholder="输入登录密码" required></label>
+        <label class="remember-row"><input id="remember" type="checkbox"><span><strong>记住此设备</strong><small>不勾选时，登录状态保留 24 小时</small></span></label>
+        <p id="message" role="status" aria-live="polite"></p>
+        <button type="submit" class="filled-button">登录控制台</button>
+      </form>
+      <p class="console-login-security">仅限授权用户访问 · 登录凭据经加密校验</p>
+    </section>
+  </main>
+  <script src="/js/console-login.js"></script>
+</body>
+</html>

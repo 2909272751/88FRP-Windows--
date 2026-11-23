@@ -1,0 +1,25 @@
+{
+  "requests": [
+    "http://127.0.0.1:8801/",
+    "http://127.0.0.1:8801/css/lucide.css",
+    "http://127.0.0.1:8801/css/style.css?v=3.7.0",
+    "http://127.0.0.1:8801/css/gateway5.css?v=3.7.0",
+    "http://127.0.0.1:8801/88frp-logo.png",
+    "http://127.0.0.1:8801/js/api.js?v=3.7.0",
+    "http://127.0.0.1:8801/js/gateway.js?v=3.7.0",
+    "http://127.0.0.1:8801/css/lucide.woff2?t=1785013430724",
+    "http://127.0.0.1:8801/api/gateway?health=0",
+    "http://127.0.0.1:8801/api/gateway",
+    "http://127.0.0.1:8801/api/gateway/logs?tail=200"
+  ],
+  "gatewayCalls": [
+    "http://127.0.0.1:8801/api/gateway?health=0",
+    "http://127.0.0.1:8801/api/gateway",
+    "http://127.0.0.1:8801/api/gateway/logs?tail=200"
+  ],
+  "logCallsBeforeExpand": [],
+  "logCallsAfterExpand": [
+    "http://127.0.0.1:8801/api/gateway/logs?tail=200"
+  ],
+  "logPanelText": "09:28:04  DNS 记录已自动同步\n11:33:18  网页访问已停止\n11:33:18  IPv4 备用通道已停止\n11:33:18  远程连接通道已停止\n11:33:18  配置已更新\n11:33:50  远程连接通道已启动\n11:33:51  网页访问配置已更新\n11:33:53  配置已更新\n11:34"
+}
