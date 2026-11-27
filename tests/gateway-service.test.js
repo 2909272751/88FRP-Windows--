@@ -109,6 +109,14 @@ function createFakes() {
   const tunnelService = {
     async list() { return { tunnels: [] }; },
   };
+  const syncService = {
+    calls: [],
+    result: { changed: false, runtimeAction: "unchanged", validation: { valid: true, errors: [], warnings: [] } },
+    async syncInstance(id, options) {
+      this.calls.push({ id, options });
+      return this.result;
+    },
+  };
   const domainBindingService = {
     read() { return null; },
   };
@@ -143,6 +151,7 @@ function createFakes() {
     processManager,
     instanceService,
     tunnelService,
+    syncService,
     domainBindingService,
     ipv6Provider,
     firewallService,
@@ -165,7 +174,7 @@ async function withService(run) {
     instanceService: fakes.instanceService,
     tunnelService: fakes.tunnelService,
     domainBindingService: fakes.domainBindingService,
-    syncService: {},
+    syncService: fakes.syncService,
     caddyManager: fakes.caddy,
     frpcManager: fakes.frpc,
     dnsService: fakes.dns,
@@ -585,5 +594,65 @@ test("添加 TCP 远程桌面服务会同时更新 frpc 配置", async () => {
     const config = fakes.frpc.applied[fakes.frpc.applied.length - 1];
     assert.match(config, /localPort = 64540/);
     assert.match(config, /remotePort = 64540/);
+  });
+});
+
+test("后台会自动刷新 88FRP 来源并把新地址应用到备用通道与 DNS", async () => {
+  await withService(async ({ service, store, fakes }) => {
+    service.saveState(initializedState());
+    fakes.syncService.syncInstance = async () => {
+      await store.saveConfig("legacy", '[common]\nserverAddr = "198.51.100.9"\nserverPort = 7000\n');
+      return { changed: true, runtimeAction: "saved", validation: { valid: true, errors: [], warnings: [] } };
+    };
+
+    await service.schedulerTick();
+
+    const config = fakes.frpc.applied[fakes.frpc.applied.length - 1];
+    assert.match(config, /serverAddr = "198\.51\.100\.9"/);
+    assert.equal(fakes.dns.writes, 1);
+    const runtime = service.gatewayStore.readRuntime();
+    assert.ok(runtime.source.lastCheckAt);
+    assert.ok(runtime.source.lastChangedAt);
+    assert.equal(runtime.source.lastError, "");
+    assert.equal(runtime.scheduler.nodeIpv4, "198.51.100.9");
+  });
+});
+
+test("来源自动检查按间隔节流，到期后会再次检查", async () => {
+  await withService(async ({ service, fakes }) => {
+    const state = initializedState();
+    service.saveState(state);
+
+    await service.refreshSourceIfDue(state);
+    await service.refreshSourceIfDue(state);
+    assert.equal(fakes.syncService.calls.length, 1);
+
+    service.lastSourceCheckAt = Date.now() - 4_000;
+    await service.refreshSourceIfDue(state);
+    assert.equal(fakes.syncService.calls.length, 1);
+
+    service.lastSourceCheckAt = Date.now() - 5_100;
+    await service.refreshSourceIfDue(state);
+    assert.equal(fakes.syncService.calls.length, 2);
+  });
+});
+
+test("来源自动同步失败后进入退避，但 DNS 与进程恢复继续运行", async () => {
+  await withService(async ({ service, fakes }) => {
+    service.saveState(initializedState());
+    let calls = 0;
+    fakes.syncService.syncInstance = async () => {
+      calls += 1;
+      throw new Error("network timeout");
+    };
+
+    await service.schedulerTick();
+    assert.equal(calls, 1);
+    assert.equal(fakes.dns.writes, 1);
+    assert.match(service.gatewayStore.readRuntime().source.lastError, /network timeout/);
+
+    await service.schedulerTick();
+    assert.equal(calls, 1);
+    assert.equal(fakes.dns.writes, 1);
   });
 });

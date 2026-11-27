@@ -89,6 +89,17 @@ test("读取状态不会改写服务更新时间", () => {
   assert.equal(state.services[0].updatedAt, "2026-01-02T00:00:00.000Z");
 });
 
+test("旧版一分钟来源检查配置升级后自动改为五秒", () => {
+  const state = normalizeState({
+    ...DEFAULT_STATE,
+    settings: {
+      ...DEFAULT_STATE.settings,
+      sourceCheckIntervalMs: 60_000,
+    },
+  });
+  assert.equal(state.settings.sourceCheckIntervalMs, 5_000);
+});
+
 test("Caddy 对每个反代都删除伪造的桌面请求头", () => {
   const caddyfile = buildCaddyfile(sampleState(), {
     adminPort: 8801,

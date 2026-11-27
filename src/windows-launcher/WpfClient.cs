@@ -26,13 +26,13 @@ using SD = System.Drawing;
 [assembly: AssemblyProduct("88FRP Windows")]
 [assembly: AssemblyDescription("88FRP Windows 隧道控制台")]
 [assembly: AssemblyCompany("88FRP Windows")]
-[assembly: AssemblyVersion("3.7.0.0")]
-[assembly: AssemblyFileVersion("3.7.0.0")]
+[assembly: AssemblyVersion("3.7.1.0")]
+[assembly: AssemblyFileVersion("3.7.1.0")]
 
 internal static class Program
 {
     internal const string AppName = "88FRP";
-    internal const string AppVersion = "3.7.0";
+    internal const string AppVersion = "3.7.1";
     internal const string Host = "127.0.0.1";
     internal const int DefaultConsolePort = 8801;
     internal static int ConsolePort = DefaultConsolePort;
@@ -201,7 +201,7 @@ internal sealed partial class MainWindow : Window
     {
         this.backgroundStart = backgroundStart;
         ApplyClientTheme(ReadDarkTheme());
-        Title = "88FRP v3.7.0";
+        Title = "88FRP v3.7.1";
         Width = Math.Min(1180, Math.Max(480, SystemParameters.WorkArea.Width - 24));
         Height = Math.Min(780, Math.Max(560, SystemParameters.WorkArea.Height - 24));
         MinWidth = 480;

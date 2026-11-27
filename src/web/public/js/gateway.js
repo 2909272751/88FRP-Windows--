@@ -597,8 +597,20 @@
     setText(el.sourceState, source.lastBaseConfigAvailable ? "配置可用" : "需要同步");
     setText(el.sourceName, source.migratedInstanceName ? friendlyDeviceName(source.migratedInstanceName) : (source.legacyInstanceId || "-"));
     setText(el.sourceConfig, source.lastBaseConfigAvailable ? "存在" : "不存在");
-    setText(el.sourceError, source.lastBaseConfigAvailable ? "连接信息正常，密钥不会在本机界面回显。" : "请点击“同步来源配置”重新拉取。");
-    el.sourceRuntimeCard.classList.toggle("is-error", !source.lastBaseConfigAvailable);
+    const autoSync = source.autoSync || {};
+    const autoSyncError = autoSync.lastError ? friendlyWarning(autoSync.lastError) : "";
+    let sourceDetail = "请点击“重新连接来源”重新拉取。";
+    if (!source.lastBaseConfigAvailable) {
+      sourceDetail = "请点击“重新连接来源”重新拉取。";
+    } else if (autoSyncError) {
+      sourceDetail = `自动同步失败，将自动重试：${autoSyncError}`;
+    } else if (autoSync.lastCheckAt) {
+      sourceDetail = `后台每 5 秒自动检查 · ${formatRelativeTime(autoSync.lastCheckAt)} · 密钥不会在本机界面回显。`;
+    } else {
+      sourceDetail = "连接信息正常，后台启动后会每 5 秒检查 88FRP 地址变化。";
+    }
+    setText(el.sourceError, sourceDetail);
+    el.sourceRuntimeCard.classList.toggle("is-error", !source.lastBaseConfigAvailable || Boolean(autoSyncError));
   }
 
   function switchView(view, persist = true) {

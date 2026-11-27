@@ -2529,11 +2529,18 @@ internal sealed partial class MainWindow
         string sourceName = NativeClient.GetString(source, "migratedInstanceName");
         if (sourceName == "") sourceName = NativeClient.GetString(source, "legacyInstanceId");
         bool configAvailable = NativeClient.GetBool(source, "lastBaseConfigAvailable");
+        Dictionary<string, object> autoSync = NativeClient.AsDict(source.ContainsKey("autoSync") ? source["autoSync"] : null);
+        string autoSyncError = NativeClient.GetString(autoSync, "lastError");
+        string autoSyncCheck = FormatGatewayTime(NativeClient.GetString(autoSync, "lastCheckAt"));
         gatewaySourceStatusText.Text = sourceName == "" ? "本机后台" : "已连接：" + GatewayDeviceDisplayName(sourceName);
-        gatewaySourceStatusText.Foreground = configAvailable ? TextBrush : DangerBrush;
-        gatewaySourceDetailText.Text = configAvailable
-            ? "连接正常，凭据不会在本机界面显示。"
-            : "连接需要刷新，点右侧“重新连接”即可。";
+        gatewaySourceStatusText.Foreground = configAvailable && autoSyncError == "" ? TextBrush : DangerBrush;
+        gatewaySourceDetailText.Text = !configAvailable
+            ? "连接需要刷新，点右侧“重新连接”即可。"
+            : autoSyncError != ""
+                ? "自动同步失败，将自动重试：" + GatewayFriendlyError(autoSyncError)
+                : autoSyncCheck != "-"
+                    ? "后台每 5 秒自动检查 · 上次 " + autoSyncCheck + " · 凭据不会在本机界面显示。"
+                    : "连接正常，后台会每 5 秒检查 88FRP 地址变化。";
     }
 
     private static string RuntimeStatusLabel(string status)

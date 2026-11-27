@@ -88,14 +88,15 @@ Copy-Item -Force (Join-Path $ProjectRoot "assets\88frp-logo.png") (Join-Path $Pu
 Copy-Item -Force $IconPath (Join-Path $PublishDir "88frp-logo.ico")
 
 $Readme = @(
-  "88FRP Windows 3.7.0",
+  "88FRP Windows 3.7.1",
   "",
   "使用方法：",
   "1. 双击 88FRP.exe 打开原生桌面客户端。",
   "2. 首次启动可设置开机自动运行，之后可在全局设置中调整。",
   "3. 关闭窗口后保持托盘后台运行；右键托盘可打开、重启后台或退出。",
   "4. 修改隧道选择与手动分组后，点击保存更改。",
-  "5. 3.7.0 起可在左侧进入「概览」，网页、远程桌面和 SSH 均提供自动、IPv6 专用、IPv4 专用线路；",
+  "5. 3.7.1 起统一入口会每 5 秒在后台自动检查 88FRP 节点地址，平台更换节点后无需手动同步；",
+  "   网页、远程桌面和 SSH 均提供自动、IPv6 专用、IPv4 专用线路；",
   "   IPv6 直连设备，IPv4 通过 88FRP 兜底，公开门户和管理后台分开。",
   "",
   "安装与升级：",

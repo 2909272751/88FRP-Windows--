@@ -14,8 +14,10 @@ const { RelayManager } = require("./relay-manager");
 const {
   DEFAULT_ADMIN_PORT,
   DEFAULT_GATEWAY_PORT,
+  DEFAULT_SOURCE_CHECK_INTERVAL_MS,
   DEFAULT_STATE,
   MIN_DNS_CHECK_INTERVAL_MS,
+  MIN_SOURCE_CHECK_INTERVAL_MS,
   buildCaddyfile,
   buildFrpcConfig,
   buildTunnelNameMap,
@@ -45,6 +47,8 @@ const {
 } = require("./gateway-model");
 const { parseFrpcServerAddr, parseFrpcTunnels } = require("../tunnel-service");
 const { isPidAlive } = require("../../shared/process-utils");
+
+const MAX_SOURCE_SYNC_BACKOFF_MS = 30 * 60_000;
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -146,6 +150,9 @@ class GatewayService {
     this.schedulerRunning = false;
     this.dnsSyncQueue = Promise.resolve();
     this.lastSchedulerCheck = 0;
+    this.lastSourceCheckAt = 0;
+    this.sourceSyncFailure = null;
+    this.sourceSyncRunning = false;
     this.failureBackoff = new Map();
     this.ipv6Cache = null;
     this.ipv6CacheAt = 0;
@@ -299,6 +306,7 @@ class GatewayService {
       source: {
         ...state.source,
         lastBaseConfigAvailable,
+        autoSync: runtime.source || null,
       },
       cloudflare: {
         configured: Boolean(state.cloudflare.encryptedToken),
@@ -927,21 +935,102 @@ class GatewayService {
     return this.getOverview();
   }
 
-  async syncSourceConfig() {
+  sourceCheckIntervalMs(state = this.readState()) {
+    return Math.max(
+      MIN_SOURCE_CHECK_INTERVAL_MS,
+      Number(state.settings?.sourceCheckIntervalMs) || DEFAULT_SOURCE_CHECK_INTERVAL_MS
+    );
+  }
+
+  async refreshSourceIfDue(state) {
+    if (!state?.source?.legacyInstanceId) {
+      return { skipped: true, reason: "no-source" };
+    }
+    const now = Date.now();
+    const failure = this.sourceSyncFailure;
+    if (failure && failure.retryAt > now) {
+      return { skipped: true, reason: "backoff" };
+    }
+    const intervalMs = this.sourceCheckIntervalMs(state);
+    if (this.lastSourceCheckAt && now - this.lastSourceCheckAt < intervalMs) {
+      return { skipped: true, reason: "not-due" };
+    }
+    this.lastSourceCheckAt = now;
+    return this.syncSourceConfig({ automatic: true });
+  }
+
+  async syncSourceConfig({ automatic = false } = {}) {
     const state = this.requireInitialized();
     if (!state.source.legacyInstanceId) throw new Error("没有可同步的连接来源。");
-    const result = await this.syncService.syncInstance(state.source.legacyInstanceId, {
-      restartOnChange: false,
-    });
-    await this.applyFrpcState(state);
-    await this.gatewayStore.appendAudit("gateway.source.sync", "success", {
-      changed: result.changed,
-      runtimeAction: result.runtimeAction,
-    });
-    return {
-      changed: result.changed,
-      overview: await this.getOverview(),
-    };
+    if (this.sourceSyncRunning) {
+      return {
+        changed: false,
+        skipped: true,
+        reason: "running",
+        ...(automatic ? {} : { overview: await this.getOverview() }),
+      };
+    }
+    this.sourceSyncRunning = true;
+    const action = automatic ? "gateway.source.auto-sync" : "gateway.source.sync";
+    try {
+      const result = await this.syncService.syncInstance(state.source.legacyInstanceId, {
+        restartOnChange: false,
+      });
+      await this.applyFrpcState(state);
+      const finishedAt = nowIso();
+      const previousRuntime = this.gatewayStore.readRuntime();
+      this.gatewayStore.saveRuntime({
+        source: {
+          lastCheckAt: finishedAt,
+          lastSuccessAt: finishedAt,
+          lastChangedAt: result.changed ? finishedAt : previousRuntime.source.lastChangedAt,
+          lastError: "",
+          intervalMs: this.sourceCheckIntervalMs(state),
+        },
+      });
+      this.sourceSyncFailure = null;
+      this.lastSourceCheckAt = Date.now();
+      await this.gatewayStore.appendAudit(action, "success", {
+        changed: result.changed,
+        runtimeAction: result.runtimeAction,
+      });
+      return {
+        changed: result.changed,
+        runtimeAction: result.runtimeAction,
+        ...(automatic ? {} : { overview: await this.getOverview() }),
+      };
+    } catch (error) {
+      const previousFailure = this.sourceSyncFailure;
+      const failureCount = (previousFailure?.count || 0) + 1;
+      const intervalMs = this.sourceCheckIntervalMs(state);
+      const exponentialDelay = Math.min(intervalMs * (2 ** (failureCount - 1)), MAX_SOURCE_SYNC_BACKOFF_MS);
+      const retryDelay = Math.min(
+        Math.max(exponentialDelay, Number(error.retryAfterMs) || 0),
+        MAX_SOURCE_SYNC_BACKOFF_MS
+      );
+      this.sourceSyncFailure = {
+        count: failureCount,
+        retryAt: Date.now() + retryDelay,
+        message: error.message,
+      };
+      const failedAt = nowIso();
+      this.gatewayStore.saveRuntime({
+        source: {
+          lastCheckAt: failedAt,
+          lastError: error.message,
+          intervalMs,
+        },
+      });
+      await this.gatewayStore.appendAudit(action, "failed", { error: error.message });
+      if (this.logger?.warn && (!previousFailure || previousFailure.message !== error.message)) {
+        await this.logger.warn(
+          `88FRP 来源自动同步失败，将在约 ${Math.ceil(retryDelay / 60_000)} 分钟后重试：${error.message}`
+        );
+      }
+      throw error;
+    } finally {
+      this.sourceSyncRunning = false;
+    }
   }
 
   async syncDns(options = {}) {
@@ -1300,6 +1389,12 @@ class GatewayService {
         await this.gatewayStore.appendAudit("relay.recover", "failed", {
           error: error.message,
         });
+      }
+      try {
+        await this.refreshSourceIfDue(state);
+      } catch {
+        // syncSourceConfig records the failure and backoff; DNS and process
+        // recovery must continue with the last known-good source config.
       }
       await this.ensureProcessRunning("caddy", async () => {
         if (!state.device.domain || !state.cloudflare.encryptedToken) return;

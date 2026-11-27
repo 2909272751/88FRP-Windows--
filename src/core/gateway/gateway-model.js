@@ -9,6 +9,9 @@ const LEGACY_MANAGED_DNS_COMMENT = "由 88FRP 域名绑定自动创建，请勿�
 const DEFAULT_GATEWAY_PORT = 7777;
 const DEFAULT_ADMIN_PORT = 8801;
 const MIN_DNS_CHECK_INTERVAL_MS = 5_000;
+const DEFAULT_SOURCE_CHECK_INTERVAL_MS = 5_000;
+const MIN_SOURCE_CHECK_INTERVAL_MS = 5_000;
+const LEGACY_DEFAULT_SOURCE_CHECK_INTERVAL_MS = 60_000;
 
 const DEFAULT_STATE = {
   version: 1,
@@ -44,6 +47,7 @@ const DEFAULT_STATE = {
   },
   settings: {
     dnsCheckIntervalMs: MIN_DNS_CHECK_INTERVAL_MS,
+    sourceCheckIntervalMs: DEFAULT_SOURCE_CHECK_INTERVAL_MS,
     firewallManaged: false,
   },
   ssh: {
@@ -220,6 +224,13 @@ function normalizeState(raw) {
   const ssh = normalizeSsh(source.ssh || {});
   const gatewayPort = normalizePort(device.gatewayPort || DEFAULT_GATEWAY_PORT, "统一入口端口");
   const interval = Math.max(MIN_DNS_CHECK_INTERVAL_MS, Number(settings.dnsCheckIntervalMs) || MIN_DNS_CHECK_INTERVAL_MS);
+  const configuredSourceInterval = Number(settings.sourceCheckIntervalMs) || DEFAULT_SOURCE_CHECK_INTERVAL_MS;
+  const sourceInterval = Math.max(
+    MIN_SOURCE_CHECK_INTERVAL_MS,
+    configuredSourceInterval === LEGACY_DEFAULT_SOURCE_CHECK_INTERVAL_MS
+      ? DEFAULT_SOURCE_CHECK_INTERVAL_MS
+      : configuredSourceInterval
+  );
   return {
     ...source,
     version: 1,
@@ -261,6 +272,7 @@ function normalizeState(raw) {
     settings: {
       ...settings,
       dnsCheckIntervalMs: interval,
+      sourceCheckIntervalMs: sourceInterval,
       firewallManaged: Boolean(settings.firewallManaged),
     },
     ssh,
@@ -727,10 +739,12 @@ function validateStateForWrite(state) {
 module.exports = {
   DEFAULT_ADMIN_PORT,
   DEFAULT_GATEWAY_PORT,
+  DEFAULT_SOURCE_CHECK_INTERVAL_MS,
   DEFAULT_STATE,
   LEGACY_MANAGED_DNS_COMMENT,
   MANAGED_DNS_COMMENT,
   MIN_DNS_CHECK_INTERVAL_MS,
+  MIN_SOURCE_CHECK_INTERVAL_MS,
   RESERVED_SERVICE_NAMES,
   adminUrl,
   buildCaddyfile,

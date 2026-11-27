@@ -35,6 +35,13 @@ const DEFAULT_RUNTIME = {
     ipv6Address: "",
     nodeIpv4: "",
   },
+  source: {
+    lastCheckAt: "",
+    lastSuccessAt: "",
+    lastChangedAt: "",
+    lastError: "",
+    intervalMs: 0,
+  },
   updatedAt: "",
 };
 
@@ -46,6 +53,7 @@ function mergeRuntime(raw) {
     caddy: { ...DEFAULT_RUNTIME.caddy, ...(value.caddy || {}) },
     frpc: { ...DEFAULT_RUNTIME.frpc, ...(value.frpc || {}) },
     scheduler: { ...DEFAULT_RUNTIME.scheduler, ...(value.scheduler || {}) },
+    source: { ...DEFAULT_RUNTIME.source, ...(value.source || {}) },
   };
 }
 
@@ -168,6 +176,7 @@ class GatewayStore {
       caddy: { ...current.caddy, ...(patch?.caddy || {}) },
       frpc: { ...current.frpc, ...(patch?.frpc || {}) },
       scheduler: { ...current.scheduler, ...(patch?.scheduler || {}) },
+      source: { ...current.source, ...(patch?.source || {}) },
       updatedAt: new Date().toISOString(),
     });
     writeJsonAtomicSync(this.runtimeFile, next, {

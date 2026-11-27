@@ -126,17 +126,17 @@ test("公开门户采用整卡直达并保留加载失败重试", async () => {
   assert.doesNotMatch(script, /data-copy-url/);
 });
 
-test("3.7.0 登录页使用当前产品文案且不再出现旧实例隧道入口", async () => {
+test("3.7.1 登录页使用当前产品文案且不再出现旧实例隧道入口", async () => {
   const publicDir = path.join(__dirname, "../src/web/public");
   const html = await fs.readFile(path.join(publicDir, "console-login.html"), "utf8");
-  assert.match(html, /v3\.7\.0/);
+  assert.match(html, /v3\.7\.1/);
   assert.match(html, /管理这台电脑的服务与远程访问/);
   assert.match(html, /IPv6 优先直连，IPv4 自动兜底/);
   assert.match(html, /id="loginForm"/);
   assert.doesNotMatch(html, /实例、隧道和账号/);
 });
 
-test("3.7.0 网页、远程桌面和 SSH 都提供自动、IPv6、IPv4 三条线路", async () => {
+test("3.7.1 网页、远程桌面和 SSH 都提供自动、IPv6、IPv4 三条线路", async () => {
   const publicDir = path.join(__dirname, "../src/web/public");
   const [gatewayHtml, gatewayScript, portalHtml, portalScript, nativeWorkspace] = await Promise.all([
     fs.readFile(path.join(publicDir, "gateway.html"), "utf8"),
@@ -146,7 +146,7 @@ test("3.7.0 网页、远程桌面和 SSH 都提供自动、IPv6、IPv4 三条线
     fs.readFile(path.join(__dirname, "../src/windows-launcher/GatewayWorkspace.cs"), "utf8"),
   ]);
 
-  assert.match(gatewayHtml, /v3\.7\.0/);
+  assert.match(gatewayHtml, /v3\.7\.1/);
   assert.match(gatewayHtml, /id="webV6Url"/);
   assert.match(gatewayHtml, /id="webV4Url"/);
   assert.match(gatewayHtml, /id="sshEndpointV6"/);
